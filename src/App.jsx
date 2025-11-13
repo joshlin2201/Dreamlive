@@ -1,6 +1,140 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { FolderOpen, RefreshCw, RotateCcw, Play, Pause } from 'lucide-react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import ReactDOM from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FolderOpen, RefreshCw, RotateCcw, Play, Pause, Search, X } from 'lucide-react';
 import './App.css';
+
+// Searchable Select Component
+function SearchableSelect({ value, onChange, options = [], placeholder, disabled }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  const selectedOption = options.find(opt => opt.value === value);
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Click outside handler
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Calculate position once on open
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current) return;
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPosition({
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.left + window.scrollX,
+      width: rect.width
+    });
+  }, [isOpen]);
+
+  const handleSelect = (optionValue) => {
+    onChange(optionValue);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const dropdownContent = (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          ref={dropdownRef}
+          initial={{ opacity: 0, y: -5, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -5, scale: 0.95 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
+          className="select-dropdown"
+          style={{
+            position: 'absolute',
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+            width: `${position.width}px`,
+          }}
+        >
+          <div className="search-input-wrapper">
+            <Search size={16} className="search-icon" />
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search tracks..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="clear-search"
+                onClick={() => setSearchTerm('')}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <div className="select-options">
+            {filteredOptions.length === 0 ? (
+              <div className="no-results">No tracks found</div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`select-option ${option.value === value ? 'selected' : ''}`}
+                  onClick={() => handleSelect(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  return (
+    <>
+      <div className="searchable-select">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="select-trigger"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+        >
+          <span className="select-value">
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+          <Search size={16} className="select-icon" />
+        </button>
+      </div>
+      {ReactDOM.createPortal(dropdownContent, document.body)}
+    </>
+  );
+}
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
@@ -498,21 +632,19 @@ function App() {
             </div>
             <div className="bg-music-container">
               <div className="bg-select">
-                <select
+                <SearchableSelect
                   value={bgTrack}
-                  onChange={(e) => {
-                    setBgTrack(e.target.value);
+                  onChange={(value) => {
+                    setBgTrack(value);
                     setBgPlaying(false);
                   }}
-                  className="track-select"
-                >
-                  <option value="">Select background music...</option>
-                  {audioFiles.map((file, index) => (
-                    <option key={index} value={file.path}>
-                      {file.name}
-                    </option>
-                  ))}
-                </select>
+                  options={audioFiles.map(file => ({
+                    value: file.path,
+                    label: file.name
+                  }))}
+                  placeholder="Select background music..."
+                  disabled={false}
+                />
               </div>
 
               <div className="bg-controls">
@@ -588,22 +720,20 @@ function App() {
                   </div>
 
                   <div className="perf-select">
-                    <select
+                    <SearchableSelect
                       value={perfTracks[index]}
-                      onChange={(e) => {
+                      onChange={(value) => {
                         const newTracks = [...perfTracks];
-                        newTracks[index] = e.target.value;
+                        newTracks[index] = value;
                         setPerfTracks(newTracks);
                       }}
-                      className="track-select"
-                    >
-                      <option value="">Select track...</option>
-                      {audioFiles.map((file, i) => (
-                        <option key={i} value={file.path}>
-                          {file.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={audioFiles.map(file => ({
+                        value: file.path,
+                        label: file.name
+                      }))}
+                      placeholder="Select track..."
+                      disabled={false}
+                    />
                   </div>
 
                   {perfTracks[index] && (
