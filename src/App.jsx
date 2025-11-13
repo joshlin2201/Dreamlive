@@ -55,8 +55,16 @@ function App() {
     setIsLoading(true);
     try {
       if (window.electronAPI) {
+        // Desktop Electron version
         const files = await window.electronAPI.getAudioFiles();
         setAudioFiles(files);
+      } else {
+        // PWA/iPad version - load from IndexedDB
+        const savedFiles = await loadFilesFromIndexedDB();
+        if (savedFiles && savedFiles.length > 0) {
+          setAudioFiles(savedFiles);
+          setCustomFolder('Saved audio files');
+        }
       }
     } catch (error) {
       console.error('Error loading audio files:', error);
@@ -68,31 +76,161 @@ function App() {
   const handleSelectFolder = async () => {
     try {
       if (window.electronAPI) {
+        // Desktop Electron version
         const folderPath = await window.electronAPI.selectAudioFolder();
         if (folderPath) {
           setCustomFolder(folderPath);
           const files = await window.electronAPI.getAudioFilesFromPath(folderPath);
           setAudioFiles(files);
         }
+      } else {
+        // PWA/iPad version - use file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = 'audio/*,.mp3,.wav,.ogg,.m4a,.flac';
+
+        input.onchange = async (e) => {
+          const files = Array.from(e.target.files);
+          const audioFiles = await processFilesForPWA(files);
+          setAudioFiles(audioFiles);
+          setCustomFolder(`${files.length} files selected`);
+
+          // Save to IndexedDB for persistence
+          await saveFilesToIndexedDB(audioFiles);
+        };
+
+        input.click();
       }
     } catch (error) {
       console.error('Error selecting folder:', error);
     }
   };
 
-  const handleRefresh = () => {
-    if (customFolder) {
-      window.electronAPI.getAudioFilesFromPath(customFolder).then(files => {
-        setAudioFiles(files);
-      });
+  const handleRefresh = async () => {
+    if (window.electronAPI) {
+      // Desktop Electron version
+      if (customFolder) {
+        window.electronAPI.getAudioFilesFromPath(customFolder).then(files => {
+          setAudioFiles(files);
+        });
+      } else {
+        loadAudioFiles();
+      }
     } else {
-      loadAudioFiles();
+      // PWA version - reload from IndexedDB
+      const savedFiles = await loadFilesFromIndexedDB();
+      if (savedFiles && savedFiles.length > 0) {
+        setAudioFiles(savedFiles);
+      }
     }
+  };
+
+  // IndexedDB functions for PWA
+  const openDB = () => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('DreamlandAudioDB', 1);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('audioFiles')) {
+          db.createObjectStore('audioFiles', { keyPath: 'id' });
+        }
+      };
+    });
+  };
+
+  const saveFilesToIndexedDB = async (files) => {
+    try {
+      const db = await openDB();
+      const transaction = db.transaction(['audioFiles'], 'readwrite');
+      const store = transaction.objectStore('audioFiles');
+
+      // Clear existing files
+      store.clear();
+
+      // Save new files
+      for (const file of files) {
+        await new Promise((resolve, reject) => {
+          const request = store.add(file);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      console.log('Files saved to IndexedDB');
+    } catch (error) {
+      console.error('Error saving to IndexedDB:', error);
+    }
+  };
+
+  const loadFilesFromIndexedDB = async () => {
+    try {
+      const db = await openDB();
+      const transaction = db.transaction(['audioFiles'], 'readonly');
+      const store = transaction.objectStore('audioFiles');
+
+      return new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const files = request.result;
+          // Recreate blob URLs from stored file data
+          const filesWithUrls = files.map(file => {
+            if (file.fileData) {
+              return {
+                ...file,
+                path: URL.createObjectURL(file.fileData)
+              };
+            }
+            return file;
+          });
+          resolve(filesWithUrls);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error('Error loading from IndexedDB:', error);
+      return [];
+    }
+  };
+
+  const processFilesForPWA = async (files) => {
+    const audioFiles = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|ogg|m4a|flac)$/i)) {
+        // Create blob URL for the file
+        const blobUrl = URL.createObjectURL(file);
+
+        // Store file info and blob URL
+        audioFiles.push({
+          id: `file-${Date.now()}-${i}`,
+          name: file.name,
+          path: blobUrl,
+          size: file.size,
+          type: file.type,
+          // Store the actual file object for persistence
+          fileData: file
+        });
+      }
+    }
+
+    // Sort alphabetically
+    return audioFiles.sort((a, b) => a.name.localeCompare(b.name));
   };
 
   // Background music controls
   const toggleBackgroundMusic = () => {
     if (!bgTrack || !bgAudioRef.current) return;
+
+    // Don't allow playing background music during a performance
+    if (currentPerformance !== null && !bgPlaying) {
+      return; // Do nothing - performance is active
+    }
 
     if (bgPlaying) {
       bgAudioRef.current.pause();
@@ -146,6 +284,11 @@ function App() {
 
       if (currentStep >= fadeSteps) {
         clearInterval(fadeIntervalRef.current);
+        // Pause the background music after fade out
+        if (bgAudioRef.current) {
+          bgAudioRef.current.pause();
+        }
+        setBgPlaying(false);
         setIsFading(false);
         if (callback) callback();
       }
@@ -154,13 +297,18 @@ function App() {
 
   // Fade background music in (3 seconds)
   const fadeInBackground = () => {
-    if (!bgAudioRef.current || !bgPlaying) return;
+    if (!bgAudioRef.current || !bgTrack) return;
 
     setIsFading(true);
     const targetVolume = bgVolume;
     const fadeSteps = 30;
     const volumeIncrement = targetVolume / fadeSteps;
     let currentStep = 0;
+
+    // Start playing at volume 0
+    bgAudioRef.current.volume = 0;
+    bgAudioRef.current.play();
+    setBgPlaying(true);
 
     fadeIntervalRef.current = setInterval(() => {
       currentStep++;
@@ -298,9 +446,11 @@ function App() {
       <header className="app-header">
         <div className="header-content">
           <div className="logo-container">
-            <div className="logo-circle">
-              <span className="logo-text">DL</span>
-            </div>
+            <img
+              src="/icons/Dreamland.png"
+              alt="Dreamland Maid Cafe Logo"
+              className="logo-image"
+            />
           </div>
           <div className="title-container">
             <h1 className="app-title">Dreamland Maid Cafe</h1>
@@ -334,8 +484,16 @@ function App() {
           {/* Background Music Section */}
           <section className="background-section">
             <div className="section-header">
-              <h2 className="section-title">🎵 Background Music</h2>
-              <span className="section-subtitle">Plays during MC talk time • Loops automatically</span>
+              <h2 className="section-title">Background Music</h2>
+              {currentPerformance !== null ? (
+                <span className="bg-status-badge queued">⏸ Queued (Performance Active)</span>
+              ) : bgPlaying ? (
+                <span className="bg-status-badge playing">▶ Playing</span>
+              ) : bgTrack ? (
+                <span className="bg-status-badge ready">● Ready</span>
+              ) : (
+                <span className="bg-status-badge idle">Select Track</span>
+              )}
             </div>
             <div className="bg-music-container">
               <div className="bg-select">
@@ -360,13 +518,13 @@ function App() {
                 <button
                   className={`play-btn ${bgPlaying ? 'playing' : ''}`}
                   onClick={toggleBackgroundMusic}
-                  disabled={!bgTrack}
+                  disabled={!bgTrack || currentPerformance !== null}
                 >
                   {bgPlaying ? <Pause size={24} /> : <Play size={24} />}
                 </button>
 
                 <div className="volume-control">
-                  <span className="volume-icon">🔊</span>
+                  <span className="volume-icon">🎵</span>
                   <input
                     type="range"
                     min="0"
@@ -402,7 +560,7 @@ function App() {
           {/* Performance Tracks Section */}
           <section className="performances-section">
             <div className="section-header">
-              <h2 className="section-title">🎤 Live Performances</h2>
+              <h2 className="section-title">Live Performances</h2>
             </div>
             <div className="performances-grid">
               {[0, 1, 2, 3].map((index) => (
@@ -429,7 +587,6 @@ function App() {
                         setPerfTracks(newTracks);
                       }}
                       className="track-select"
-                      disabled={currentPerformance !== null}
                     >
                       <option value="">Select track...</option>
                       {audioFiles.map((file, i) => (
@@ -444,7 +601,7 @@ function App() {
                     <>
                       {/* Volume Control */}
                       <div className="perf-volume">
-                        <span className="volume-icon">🔊</span>
+                        <span className="volume-icon">🎵</span>
                         <input
                           type="range"
                           min="0"
@@ -499,8 +656,8 @@ function App() {
                             onClick={() => startPerformance(index)}
                             disabled={!perfTracks[index] || currentPerformance !== null}
                           >
-                            <Play size={24} />
-                            <span>Start Performance</span>
+                            <Play size={18} />
+                            <span>START</span>
                           </button>
                         )}
                       </div>

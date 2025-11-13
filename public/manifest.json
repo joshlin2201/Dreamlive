@@ -1,0 +1,39 @@
+{
+  "name": "Dreamland Maid Cafe - Live Performance Controller",
+  "short_name": "Dream Live Pro",
+  "description": "Professional audio controller for live maid cafe performances",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#ff69b4",
+  "background_color": "#ffeef8",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment", "productivity"],
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-1.png",
+      "sizes": "2048x1536",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
+}
