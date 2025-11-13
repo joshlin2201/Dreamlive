@@ -451,8 +451,8 @@ function App() {
           </div>
           <div className="logo-container">
             <img
-              src="/icons/dreamland-logo.png"
-              alt="Dreamland Maid Cafe Logo"
+              src="/icons/Dreamlive.png"
+              alt="DreamLIVE! Performance Controller"
               className="logo-image"
             />
           </div>
