@@ -578,6 +578,7 @@ function App() {
 
   return (
     <div className="App">
+
       <header className="app-header">
         <div className="header-content">
           <div className="title-container">
@@ -616,9 +617,27 @@ function App() {
         </div>
       ) : (
         <>
-          {/* Background Music Section */}
-          <section className="background-section">
-            <div className="section-header">
+          {/* Main Controls Row - BGM + Performance Counter */}
+          <div className="main-controls-row">
+            {/* Background Music Section */}
+            <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''}`}>
+              {/* Sparkle overlay and particles when playing */}
+              {bgPlaying && (
+                <>
+                  <div className="sparkle-overlay"></div>
+                  <div className="audio-particles">
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                    <div className="particle">🌸</div>
+                  </div>
+                </>
+              )}
+              <div className="section-header">
               <h2 className="section-title">Background Music ・ BGM</h2>
               {currentPerformance !== null ? (
                 <span className="bg-status-badge queued">⏸ Queued</span>
@@ -649,7 +668,7 @@ function App() {
 
               <div className="bg-controls">
                 <button
-                  className={`play-btn ${bgPlaying ? 'playing' : ''}`}
+                  className={`play-btn ${bgPlaying ? 'is-playing' : ''}`}
                   onClick={toggleBackgroundMusic}
                   disabled={!bgTrack || currentPerformance !== null}
                 >
@@ -678,16 +697,14 @@ function App() {
                 onEnded={() => setBgPlaying(false)}
               />
             </div>
-          </section>
+            </section>
 
-          {/* Performance Progress */}
-          <div className="performance-progress">
-            <div className="progress-badge">
-              <span className="progress-number">{completedCount}</span>
-              <span className="progress-divider">/</span>
-              <span className="progress-total">4</span>
+            {/* Performance Counter Card */}
+            <div className="performance-counter-card">
+              <div className="counter-label">Completed</div>
+              <div className="counter-value">{completedCount}/4</div>
+              <div className="counter-sublabel">Performances</div>
             </div>
-            <span className="progress-label">Performances Completed</span>
           </div>
 
           {/* Performance Tracks Section */}
@@ -703,6 +720,22 @@ function App() {
                     currentPerformance === index ? 'active' : ''
                   } ${performanceStatus[index] ? 'completed' : ''}`}
                 >
+                  {/* Particles and sparkle when this performance is playing */}
+                  {currentPerformance === index && perfPlaying[index] && (
+                    <>
+                      <div className="sparkle-overlay"></div>
+                      <div className="audio-particles">
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                        <div className="particle">🌸</div>
+                      </div>
+                    </>
+                  )}
                   <div className="perf-header">
                     <div className="perf-number">#{index + 1}</div>
                     <h3 className="perf-title">Performance {index + 1}</h3>
@@ -774,7 +807,7 @@ function App() {
                       <div className="perf-controls">
                         {currentPerformance === index ? (
                           <button
-                            className="pause-btn"
+                            className={`pause-btn ${perfPlaying[index] ? 'is-playing' : ''}`}
                             onClick={() => togglePerfPause(index)}
                           >
                             {perfPlaying[index] ? (
@@ -817,12 +850,13 @@ function App() {
           {/* Bottom Controls */}
           <footer className="app-footer">
             <button className="reset-all-btn" onClick={resetAll}>
-              <RotateCcw size={24} />
+              <RotateCcw size={20} />
               <span>Reset All</span>
             </button>
             <div className="footer-info">
-              <span className="file-count">{audioFiles.length} tracks</span>
+              <span className="file-count">{audioFiles.length}</span>
             </div>
+            <div className="footer-spacer"></div>
           </footer>
         </>
       )}
