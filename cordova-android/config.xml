@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.dreamlandmaidcafe.livepro" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+    <name>Dreamland Live Pro</name>
+    <description>Dreamland Maid Cafe Live Performance Audio Controller</description>
+    <author email="contact@dreamlandmaidcafe.com" href="https://dreamlandmaidcafe.com">
+        Dreamland Maid Cafe
+    </author>
+    <content src="index.html" />
+
+    <!-- Allow access to all external resources -->
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-navigation href="*" />
+
+    <!-- Android specific preferences -->
+    <platform name="android">
+        <preference name="android-minSdkVersion" value="24" />
+        <preference name="android-targetSdkVersion" value="34" />
+        <preference name="AndroidXEnabled" value="true" />
+
+        <!-- Audio and media permissions -->
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+            <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+        </config-file>
+
+        <!-- Keep screen on during performances -->
+        <preference name="KeepRunning" value="true" />
+        <preference name="ShowSplashScreenSpinner" value="false" />
+
+        <!-- Icon configuration -->
+        <icon src="../public/icon-192x192.png" density="mdpi" />
+        <icon src="../public/icon-512x512.png" density="hdpi" />
+        <icon src="../public/icon-512x512.png" density="xhdpi" />
+        <icon src="../public/icon-512x512.png" density="xxhdpi" />
+        <icon src="../public/icon-512x512.png" density="xxxhdpi" />
+
+        <!-- Splash screen -->
+        <splash src="../public/icon-512x512.png" density="land-hdpi" />
+        <splash src="../public/icon-512x512.png" density="land-xhdpi" />
+        <splash src="../public/icon-512x512.png" density="port-hdpi" />
+        <splash src="../public/icon-512x512.png" density="port-xhdpi" />
+    </platform>
+
+    <!-- Preferences for better web app experience -->
+    <preference name="Orientation" value="landscape" />
+    <preference name="Fullscreen" value="false" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="BackgroundColor" value="#fff5f9" />
+    <preference name="SplashScreenDelay" value="1000" />
+    <preference name="AutoHideSplashScreen" value="true" />
+    <preference name="FadeSplashScreenDuration" value="300" />
+
+    <!-- WebView preferences for audio -->
+    <preference name="MediaPlaybackRequiresUserAction" value="false" />
+    <preference name="AllowInlineMediaPlayback" value="true" />
+</widget>
