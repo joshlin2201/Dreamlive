@@ -447,7 +447,7 @@ function App() {
       <header className="app-header">
         <div className="header-content">
           <div className="title-container">
-            <p className="app-subtitle">Live Performance Controller</p>
+            <p className="app-subtitle">Live Performance Controller ・ ライブコントローラー</p>
           </div>
           <div className="logo-container">
             <img
@@ -464,6 +464,7 @@ function App() {
           </button>
           <button className="refresh-btn" onClick={handleRefresh} title="Refresh Audio Files">
             <RefreshCw size={20} />
+            <span>Refresh</span>
           </button>
         </div>
       </header>
@@ -484,9 +485,9 @@ function App() {
           {/* Background Music Section */}
           <section className="background-section">
             <div className="section-header">
-              <h2 className="section-title">Background Music</h2>
+              <h2 className="section-title">Background Music ・ BGM</h2>
               {currentPerformance !== null ? (
-                <span className="bg-status-badge queued">⏸ Queued (Performance Active)</span>
+                <span className="bg-status-badge queued">⏸ Queued</span>
               ) : bgPlaying ? (
                 <span className="bg-status-badge playing">▶ Playing</span>
               ) : bgTrack ? (
@@ -560,7 +561,7 @@ function App() {
           {/* Performance Tracks Section */}
           <section className="performances-section">
             <div className="section-header">
-              <h2 className="section-title">Live Performances</h2>
+              <h2 className="section-title">Live Performances ・ パフォーマンス</h2>
             </div>
             <div className="performances-grid">
               {[0, 1, 2, 3].map((index) => (
@@ -574,7 +575,7 @@ function App() {
                     <div className="perf-number">#{index + 1}</div>
                     <h3 className="perf-title">Performance {index + 1}</h3>
                     {performanceStatus[index] ? (
-                      <span className="perf-status-badge completed">✓ Complete</span>
+                      <span className="perf-status-badge completed">✓ Completed</span>
                     ) : currentPerformance === index && perfPlaying[index] ? (
                       <span className="perf-status-badge playing">▶ Playing</span>
                     ) : currentPerformance === index && !perfPlaying[index] ? (
@@ -665,7 +666,7 @@ function App() {
                             disabled={!perfTracks[index] || currentPerformance !== null}
                           >
                             <Play size={18} />
-                            <span>START</span>
+                            <span>Start</span>
                           </button>
                         )}
                       </div>
@@ -690,7 +691,7 @@ function App() {
               <span>Reset All</span>
             </button>
             <div className="footer-info">
-              <span className="file-count">{audioFiles.length} audio files</span>
+              <span className="file-count">{audioFiles.length} tracks</span>
             </div>
           </footer>
         </>
