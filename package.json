@@ -2,7 +2,7 @@
   "name": "dreamlive-pro",
   "version": "1.0.0",
   "description": "Dream Live Pro - Maid Cafe Performance Controller",
-  "main": "build/electron.js",
+  "main": "electron.js",
   "homepage": "./",
   "scripts": {
     "start": "react-scripts start",
@@ -10,9 +10,9 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "electron:dev": "concurrently \"BROWSER=none npm start\" \"sleep 15 && NODE_ENV=development npx electron .\"",
-    "electron:build": "npm run build && cp electron.js build/ && cp preload.js build/ && electron-builder",
-    "electron:build-win": "npm run build && cp electron.js build/ && cp preload.js build/ && electron-builder --win",
-    "electron:build-mac": "npm run build && cp electron.js build/ && cp preload.js build/ && electron-builder --mac",
+    "electron:build": "npm run build && cp electron.js build/ && cp preload.js build/ && node -e \"const pkg=require('./package.json');pkg.main='build/electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\" && electron-builder && node -e \"const pkg=require('./package.json');pkg.main='electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\"",
+    "electron:build-win": "npm run build && cp electron.js build/ && cp preload.js build/ && node -e \"const pkg=require('./package.json');pkg.main='build/electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\" && electron-builder --win && node -e \"const pkg=require('./package.json');pkg.main='electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\"",
+    "electron:build-mac": "npm run build && cp electron.js build/ && cp preload.js build/ && node -e \"const pkg=require('./package.json');pkg.main='build/electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\" && electron-builder --mac && node -e \"const pkg=require('./package.json');pkg.main='electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\"",
     "dist": "npm run build && electron-builder --win --mac --linux"
   },
   "keywords": [
@@ -53,7 +53,9 @@
       {
         "from": "audio",
         "to": "audio",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "extraResources": [
