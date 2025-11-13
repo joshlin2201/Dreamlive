@@ -9,13 +9,18 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "electron:dev": "concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "electron:dev": "concurrently \"BROWSER=none npm start\" \"sleep 15 && NODE_ENV=development npx electron .\"",
     "electron:build": "npm run build && electron-builder",
     "electron:build-win": "npm run build && electron-builder --win",
     "electron:build-mac": "npm run build && electron-builder --mac",
     "dist": "npm run build && electron-builder --win --mac --linux"
   },
-  "keywords": ["audio", "maid-cafe", "performance", "controller"],
+  "keywords": [
+    "audio",
+    "maid-cafe",
+    "performance",
+    "controller"
+  ],
   "author": "Dream Live",
   "license": "MIT",
   "devDependencies": {
@@ -49,14 +54,18 @@
       {
         "from": "audio",
         "to": "audio",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico"
@@ -65,7 +74,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/icon.icns",
