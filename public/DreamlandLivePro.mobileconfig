@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>FullScreen</key>
+			<true/>
+			<key>Icon</key>
+			<data>
+			<!-- Base64 encoded icon will go here -->
+			</data>
+			<key>IgnoreManifestScope</key>
+			<false/>
+			<key>IsRemovable</key>
+			<true/>
+			<key>Label</key>
+			<string>Dreamland Live Pro</string>
+			<key>PayloadDescription</key>
+			<string>Dreamland Maid Cafe Live Performance Controller</string>
+			<key>PayloadDisplayName</key>
+			<string>Dreamland Live Pro</string>
+			<key>PayloadIdentifier</key>
+			<string>com.dreamlandmaidcafe.livepro.webclip</string>
+			<key>PayloadType</key>
+			<string>com.apple.webClip.managed</string>
+			<key>PayloadUUID</key>
+			<string>A1B2C3D4-E5F6-4A5B-8C7D-9E0F1A2B3C4D</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Precomposed</key>
+			<true/>
+			<key>URL</key>
+			<string>https://your-deployed-url.netlify.app</string>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>Install Dreamland Live Pro audio controller app on your iPad home screen</string>
+	<key>PayloadDisplayName</key>
+	<string>Dreamland Live Pro</string>
+	<key>PayloadIdentifier</key>
+	<string>com.dreamlandmaidcafe.livepro</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>B2C3D4E5-F6A7-4B5C-8D7E-9F0A1B2C3D4E</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
