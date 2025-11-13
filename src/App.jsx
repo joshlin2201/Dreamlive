@@ -341,11 +341,6 @@ function App() {
         const newPlaying = [...perfPlaying];
         newPlaying[index] = true;
         setPerfPlaying(newPlaying);
-
-        // Mark as completed
-        const newStatus = [...performanceStatus];
-        newStatus[index] = true;
-        setPerformanceStatus(newStatus);
       }
     });
   };
@@ -371,6 +366,12 @@ function App() {
     const newPlaying = [...perfPlaying];
     newPlaying[index] = false;
     setPerfPlaying(newPlaying);
+
+    // Mark performance as completed
+    const newStatus = [...performanceStatus];
+    newStatus[index] = true;
+    setPerformanceStatus(newStatus);
+
     setCurrentPerformance(null);
     // Fade in background music
     fadeInBackground();
@@ -445,16 +446,15 @@ function App() {
     <div className="App">
       <header className="app-header">
         <div className="header-content">
+          <div className="title-container">
+            <p className="app-subtitle">Live Performance Controller</p>
+          </div>
           <div className="logo-container">
             <img
-              src="/icons/Dreamland.png"
+              src="/icons/dreamland-logo.png"
               alt="Dreamland Maid Cafe Logo"
               className="logo-image"
             />
-          </div>
-          <div className="title-container">
-            <h1 className="app-title">Dreamland Maid Cafe</h1>
-            <p className="app-subtitle">Live Performance Controller</p>
           </div>
         </div>
         <div className="header-controls">
@@ -573,8 +573,16 @@ function App() {
                   <div className="perf-header">
                     <div className="perf-number">#{index + 1}</div>
                     <h3 className="perf-title">Performance {index + 1}</h3>
-                    {performanceStatus[index] && (
-                      <span className="completed-badge">✓</span>
+                    {performanceStatus[index] ? (
+                      <span className="perf-status-badge completed">✓ Complete</span>
+                    ) : currentPerformance === index && perfPlaying[index] ? (
+                      <span className="perf-status-badge playing">▶ Playing</span>
+                    ) : currentPerformance === index && !perfPlaying[index] ? (
+                      <span className="perf-status-badge paused">⏸ Paused</span>
+                    ) : perfTracks[index] ? (
+                      <span className="perf-status-badge ready">● Ready</span>
+                    ) : (
+                      <span className="perf-status-badge idle">Select Track</span>
                     )}
                   </div>
 
