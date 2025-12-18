@@ -39,7 +39,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-audio-files', async () => {
     try {
       const audioPath = isDev
-        ? path.join(__dirname, 'audio')
+        ? path.join(__dirname, 'public/audio')
         : path.join(process.resourcesPath, 'audio');
 
       if (!fs.existsSync(audioPath)) {

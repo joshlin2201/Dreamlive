@@ -136,6 +136,14 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
   );
 }
 
+const DEFAULT_AUDIO_FILES = [
+  { id: 'def-1', name: 'Aiscream 愛スクリム', path: './audio/Aiscream 愛スクリム.mp3' },
+  { id: 'def-2', name: 'TWICE LIKEY', path: './audio/TWICE LIKEY.mp3' },
+  { id: 'def-3', name: 'Watch Me', path: './audio/Watch Me.MP3' },
+  { id: 'def-4', name: 'more jump more', path: './audio/more jump more.mp3' },
+  { id: 'def-5', name: '碗碗Gravity=Reality', path: './audio/碗碗Gravity=Reality.mp3' },
+];
+
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
   const [customFolder, setCustomFolder] = useState(null);
@@ -161,6 +169,57 @@ function App() {
   const [isFading, setIsFading] = useState(false);
   const fadeIntervalRef = useRef(null);
   const progressIntervalRef = useRef(null);
+
+  // Web Audio for BG Music
+  const audioContextRef = useRef(null);
+  const bgGainNodeRef = useRef(null);
+  const bgSourceNodeRef = useRef(null);
+
+  // Web Audio for Performance Tracks
+  const perfGainNodeRefs = useRef([null, null, null, null]);
+  const perfSourceNodeRefs = useRef([null, null, null, null]);
+
+  // Initialize Web Audio on first interaction
+  const initWebAudio = () => {
+    if (audioContextRef.current) return;
+
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+
+      // BG Setup
+      const bgGain = ctx.createGain();
+      bgGain.connect(ctx.destination);
+      bgGainNodeRef.current = bgGain;
+
+      // Perf Setup
+      perfGainNodeRefs.current = [0, 1, 2, 3].map(() => {
+        const g = ctx.createGain();
+        g.connect(ctx.destination);
+        return g;
+      });
+
+      audioContextRef.current = ctx;
+
+      if (bgAudioRef.current) {
+        const source = ctx.createMediaElementSource(bgAudioRef.current);
+        source.connect(bgGain);
+        bgSourceNodeRef.current = source;
+      }
+
+      // Connect pending perf refs
+      perfAudioRefs.current.forEach((audio, i) => {
+        if (audio && !perfSourceNodeRefs.current[i]) {
+          const source = ctx.createMediaElementSource(audio);
+          source.connect(perfGainNodeRefs.current[i]);
+          perfSourceNodeRefs.current[i] = source;
+        }
+      });
+
+    } catch (e) {
+      console.error('Web Audio init failed:', e);
+    }
+  };
 
   useEffect(() => {
     loadAudioFiles();
@@ -198,10 +257,15 @@ function App() {
         if (savedFiles && savedFiles.length > 0) {
           setAudioFiles(savedFiles);
           setCustomFolder('Saved audio files');
+        } else {
+          // Fallback to bundled files
+          setAudioFiles(DEFAULT_AUDIO_FILES);
+          setCustomFolder('Pre-loaded tracks');
         }
       }
     } catch (error) {
       console.error('Error loading audio files:', error);
+      setAudioFiles(DEFAULT_AUDIO_FILES);
     } finally {
       setIsLoading(false);
     }
@@ -342,6 +406,13 @@ function App() {
   const toggleBackgroundMusic = () => {
     if (!bgTrack || !bgAudioRef.current) return;
 
+    // Resume/Init AudioContext on interaction
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    } else if (!audioContextRef.current) {
+      initWebAudio();
+    }
+
     // Don't allow playing background music during a performance
     if (currentPerformance !== null && !bgPlaying) {
       return; // Do nothing - performance is active
@@ -359,7 +430,9 @@ function App() {
   const handleBgVolumeChange = (e) => {
     const newVolume = parseFloat(e.target.value);
     setBgVolume(newVolume);
-    if (bgAudioRef.current) {
+    if (bgGainNodeRef.current) {
+      bgGainNodeRef.current.gain.value = newVolume;
+    } else if (bgAudioRef.current) {
       bgAudioRef.current.volume = newVolume;
     }
   };
@@ -371,12 +444,14 @@ function App() {
     newVolumes[index] = newVolume;
     setPerfVolumes(newVolumes);
 
-    if (perfAudioRefs.current[index]) {
+    if (perfGainNodeRefs.current[index]) {
+      perfGainNodeRefs.current[index].gain.value = newVolume;
+    } else if (perfAudioRefs.current[index]) {
       perfAudioRefs.current[index].volume = newVolume;
     }
   };
 
-  // Fade background music out (3 seconds)
+  // Fade background music out (1.5 seconds)
   const fadeOutBackground = (callback) => {
     if (!bgAudioRef.current || !bgPlaying) {
       if (callback) callback();
@@ -384,73 +459,99 @@ function App() {
     }
 
     setIsFading(true);
-    const startVolume = bgVolume;
-    const fadeSteps = 30; // 30 steps over 3 seconds = 100ms per step
-    const volumeDecrement = startVolume / fadeSteps;
-    let currentStep = 0;
+    const audio = bgAudioRef.current;
 
-    fadeIntervalRef.current = setInterval(() => {
-      currentStep++;
-      const newVolume = Math.max(0, startVolume - (volumeDecrement * currentStep));
+    if (bgGainNodeRef.current && audioContextRef.current) {
+      const g = bgGainNodeRef.current.gain;
+      const ctx = audioContextRef.current;
+      const now = ctx.currentTime;
 
-      if (bgAudioRef.current) {
-        bgAudioRef.current.volume = newVolume;
-      }
+      // Smooth exponential fade to near-zero
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      g.exponentialRampToValueAtTime(0.001, now + 2.5);
 
-      if (currentStep >= fadeSteps) {
-        clearInterval(fadeIntervalRef.current);
-        // Pause the background music after fade out
-        if (bgAudioRef.current) {
-          bgAudioRef.current.pause();
-        }
+      setTimeout(() => {
+        audio.pause();
+        g.setValueAtTime(0, ctx.currentTime);
         setBgPlaying(false);
         setIsFading(false);
         if (callback) callback();
-      }
-    }, 100);
+      }, 2600);
+    } else {
+      // Fallback
+      audio.pause();
+      setBgPlaying(false);
+      setIsFading(false);
+      if (callback) callback();
+    }
   };
 
-  // Fade background music in (3 seconds)
+  // Fade background music in (1.5 seconds)
   const fadeInBackground = () => {
     if (!bgAudioRef.current || !bgTrack) return;
 
     setIsFading(true);
-    const targetVolume = bgVolume;
-    const fadeSteps = 30;
-    const volumeIncrement = targetVolume / fadeSteps;
-    let currentStep = 0;
+    const audio = bgAudioRef.current;
+    const target = bgVolume;
 
-    // Start playing at volume 0
-    bgAudioRef.current.volume = 0;
-    bgAudioRef.current.play();
-    setBgPlaying(true);
+    if (bgGainNodeRef.current && audioContextRef.current) {
+      const g = bgGainNodeRef.current.gain;
+      const ctx = audioContextRef.current;
+      const now = ctx.currentTime;
 
-    fadeIntervalRef.current = setInterval(() => {
-      currentStep++;
-      const newVolume = Math.min(targetVolume, volumeIncrement * currentStep);
+      audio.play();
+      setBgPlaying(true);
 
-      if (bgAudioRef.current) {
-        bgAudioRef.current.volume = newVolume;
-      }
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(0.001, now);
+      g.exponentialRampToValueAtTime(target || 0.5, now + 2.5);
 
-      if (currentStep >= fadeSteps) {
-        clearInterval(fadeIntervalRef.current);
+      setTimeout(() => {
         setIsFading(false);
-      }
-    }, 100);
+      }, 2600);
+    } else {
+      audio.volume = target;
+      audio.play();
+      setBgPlaying(true);
+      setIsFading(false);
+    }
   };
 
   // Start performance
   const startPerformance = (index) => {
     if (!perfTracks[index] || currentPerformance !== null) return;
 
+    if (!bgPlaying) {
+      alert("Please start the background music first!");
+      return;
+    }
+
     // Fade out background music, then start performance
     fadeOutBackground(() => {
       setCurrentPerformance(index);
       const audio = perfAudioRefs.current[index];
+
+      // Ensure Web Audio Connection for this track
+      if (audioContextRef.current && audio && !perfSourceNodeRefs.current[index]) {
+        try {
+          const ctx = audioContextRef.current;
+          const source = ctx.createMediaElementSource(audio);
+          source.connect(perfGainNodeRefs.current[index]);
+          perfSourceNodeRefs.current[index] = source;
+        } catch (e) {
+          console.log("Already connected or error", e);
+        }
+      }
+
+      // Set initial volume on gain node
+      if (perfGainNodeRefs.current[index]) {
+        perfGainNodeRefs.current[index].gain.value = perfVolumes[index];
+      }
+
       if (audio) {
         audio.currentTime = 0;
-        audio.volume = perfVolumes[index];
+        audio.volume = perfVolumes[index]; // Fallback
         audio.play();
 
         const newPlaying = [...perfPlaying];
@@ -623,65 +724,65 @@ function App() {
                 </>
               )}
               <div className="section-header">
-              <h2 className="section-title">Background Music ・ BGM</h2>
-              {currentPerformance !== null ? (
-                <span className="bg-status-badge queued">⏸ Queued</span>
-              ) : bgPlaying ? (
-                <span className="bg-status-badge playing">▶ Playing</span>
-              ) : bgTrack ? (
-                <span className="bg-status-badge ready">● Ready</span>
-              ) : (
-                <span className="bg-status-badge idle">Select Track</span>
-              )}
-            </div>
-            <div className="bg-music-container">
-              <div className="bg-select">
-                <SearchableSelect
-                  value={bgTrack}
-                  onChange={(value) => {
-                    setBgTrack(value);
-                    setBgPlaying(false);
-                  }}
-                  options={audioFiles.map(file => ({
-                    value: file.path,
-                    label: file.name
-                  }))}
-                  placeholder="Select background music..."
-                  disabled={false}
+                <h2 className="section-title">Background Music ・ BGM</h2>
+                {currentPerformance !== null ? (
+                  <span className="bg-status-badge queued">⏸ Queued</span>
+                ) : bgPlaying ? (
+                  <span className="bg-status-badge playing">▶ Playing</span>
+                ) : bgTrack ? (
+                  <span className="bg-status-badge ready">● Ready</span>
+                ) : (
+                  <span className="bg-status-badge idle">Select Track</span>
+                )}
+              </div>
+              <div className="bg-music-container">
+                <div className="bg-select">
+                  <SearchableSelect
+                    value={bgTrack}
+                    onChange={(value) => {
+                      setBgTrack(value);
+                      setBgPlaying(false);
+                    }}
+                    options={audioFiles.map(file => ({
+                      value: file.path,
+                      label: file.name
+                    }))}
+                    placeholder="Select background music..."
+                    disabled={false}
+                  />
+                </div>
+
+                <div className="bg-controls">
+                  <button
+                    className={`play-btn ${bgPlaying ? 'is-playing' : ''}`}
+                    onClick={toggleBackgroundMusic}
+                    disabled={!bgTrack || currentPerformance !== null}
+                  >
+                    {bgPlaying ? <Pause size={24} /> : <Play size={24} />}
+                  </button>
+
+                  <div className="volume-control">
+                    <span className="volume-icon">🎵</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={bgVolume}
+                      onChange={handleBgVolumeChange}
+                      className="volume-slider"
+                    />
+                    <span className="volume-label">{Math.round(bgVolume * 100)}%</span>
+                  </div>
+                </div>
+
+                <audio
+                  ref={bgAudioRef}
+                  src={bgTrack}
+                  loop
+                  onEnded={() => setBgPlaying(false)}
                 />
               </div>
-
-              <div className="bg-controls">
-                <button
-                  className={`play-btn ${bgPlaying ? 'is-playing' : ''}`}
-                  onClick={toggleBackgroundMusic}
-                  disabled={!bgTrack || currentPerformance !== null}
-                >
-                  {bgPlaying ? <Pause size={24} /> : <Play size={24} />}
-                </button>
-
-                <div className="volume-control">
-                  <span className="volume-icon">🎵</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={bgVolume}
-                    onChange={handleBgVolumeChange}
-                    className="volume-slider"
-                  />
-                  <span className="volume-label">{Math.round(bgVolume * 100)}%</span>
-                </div>
-              </div>
-
-              <audio
-                ref={bgAudioRef}
-                src={bgTrack}
-                loop
-                onEnded={() => setBgPlaying(false)}
-              />
-            </div>
             </section>
 
             {/* Performance Counter Card */}
@@ -704,9 +805,8 @@ function App() {
               {[0, 1, 2, 3].map((index) => (
                 <div
                   key={index}
-                  className={`performance-card ${
-                    currentPerformance === index ? 'active' : ''
-                  } ${performanceStatus[index] ? 'completed' : ''}`}
+                  className={`performance-card ${currentPerformance === index ? 'active' : ''
+                    } ${performanceStatus[index] ? 'completed' : ''}`}
                 >
                   {/* Particles and sparkle when this performance is playing */}
                   {currentPerformance === index && perfPlaying[index] && (
@@ -814,7 +914,8 @@ function App() {
                           <button
                             className="start-performance-btn"
                             onClick={() => startPerformance(index)}
-                            disabled={!perfTracks[index] || currentPerformance !== null || performanceStatus[index]}
+                            disabled={!perfTracks[index] || currentPerformance !== null || performanceStatus[index] || !bgPlaying} // Guardrail: Must be playing BGM
+                            title={!bgPlaying ? "Start background music first" : "Start Performance"}
                           >
                             <Play size={18} />
                             <span>Start</span>
