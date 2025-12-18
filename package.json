@@ -57,7 +57,7 @@
     ],
     "extraFiles": [
       {
-        "from": "audio",
+        "from": "public/audio",
         "to": "audio",
         "filter": [
           "**/*"
@@ -66,7 +66,7 @@
     ],
     "extraResources": [
       {
-        "from": "audio",
+        "from": "public/audio",
         "to": "audio",
         "filter": [
           "**/*"
