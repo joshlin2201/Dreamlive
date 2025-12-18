@@ -13,7 +13,9 @@
     "electron:build": "npm run build && cp electron.js build/ && cp preload.js build/ && node -e \"const pkg=require('./package.json');pkg.main='build/electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\" && electron-builder && node -e \"const pkg=require('./package.json');pkg.main='electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\"",
     "electron:build-win": "npm run build && cp electron.js build/ && cp preload.js build/ && node -e \"const pkg=require('./package.json');pkg.main='build/electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\" && electron-builder --win && node -e \"const pkg=require('./package.json');pkg.main='electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\"",
     "electron:build-mac": "npm run build && cp electron.js build/ && cp preload.js build/ && node -e \"const pkg=require('./package.json');pkg.main='build/electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\" && electron-builder --mac && node -e \"const pkg=require('./package.json');pkg.main='electron.js';require('fs').writeFileSync('package.json',JSON.stringify(pkg,null,2))\"",
-    "dist": "npm run build && electron-builder --win --mac --linux"
+    "dist": "npm run build && electron-builder --win --mac --linux",
+    "cap:sync": "npm run build && npx cap sync ios",
+    "cap:open": "npx cap open ios"
   },
   "keywords": [
     "audio",

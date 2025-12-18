@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderOpen, RefreshCw, RotateCcw, Play, Pause, Search, X } from 'lucide-react';
+import { FolderOpen, RotateCcw, Play, Pause, Search, X } from 'lucide-react';
 import './App.css';
 
 // Searchable Select Component
@@ -238,25 +238,6 @@ function App() {
       }
     } catch (error) {
       console.error('Error selecting folder:', error);
-    }
-  };
-
-  const handleRefresh = async () => {
-    if (window.electronAPI) {
-      // Desktop Electron version
-      if (customFolder) {
-        window.electronAPI.getAudioFilesFromPath(customFolder).then(files => {
-          setAudioFiles(files);
-        });
-      } else {
-        loadAudioFiles();
-      }
-    } else {
-      // PWA version - reload from IndexedDB
-      const savedFiles = await loadFilesFromIndexedDB();
-      if (savedFiles && savedFiles.length > 0) {
-        setAudioFiles(savedFiles);
-      }
     }
   };
 
@@ -549,8 +530,12 @@ function App() {
       }
     });
 
+    // Reset all state to initial values
+    setBgTrack('');
+    setPerfTracks(['', '', '', '']);
     setPerfPlaying([false, false, false, false]);
     setPerfProgress([0, 0, 0, 0]);
+    setPerfDurations([0, 0, 0, 0]);
     setPerformanceStatus([false, false, false, false]);
     setCurrentPerformance(null);
 
@@ -597,9 +582,9 @@ function App() {
             <FolderOpen size={20} />
             <span>Select Folder</span>
           </button>
-          <button className="refresh-btn" onClick={handleRefresh} title="Refresh Audio Files">
-            <RefreshCw size={20} />
-            <span>Refresh</span>
+          <button className="reset-all-btn" onClick={resetAll} title="Reset All">
+            <RotateCcw size={20} />
+            <span>Reset All</span>
           </button>
         </div>
       </header>
@@ -704,6 +689,9 @@ function App() {
               <div className="counter-label">Completed</div>
               <div className="counter-value">{completedCount}/4</div>
               <div className="counter-sublabel">Performances</div>
+              <div className="counter-track-info">
+                <span className="file-count">{audioFiles.length}</span>
+              </div>
             </div>
           </div>
 
@@ -826,7 +814,7 @@ function App() {
                           <button
                             className="start-performance-btn"
                             onClick={() => startPerformance(index)}
-                            disabled={!perfTracks[index] || currentPerformance !== null}
+                            disabled={!perfTracks[index] || currentPerformance !== null || performanceStatus[index]}
                           >
                             <Play size={18} />
                             <span>Start</span>
@@ -847,17 +835,43 @@ function App() {
             </div>
           </section>
 
-          {/* Bottom Controls */}
-          <footer className="app-footer">
-            <button className="reset-all-btn" onClick={resetAll}>
-              <RotateCcw size={20} />
-              <span>Reset All</span>
-            </button>
-            <div className="footer-info">
-              <span className="file-count">{audioFiles.length}</span>
+          {/* Instructions Component */}
+          <section className="instructions-section">
+            <div className="instructions-card">
+              <div className="instructions-header">
+                <span className="instructions-icon">💫</span>
+                <h3 className="instructions-title">How to Use DreamLIVE!</h3>
+                <span className="instructions-icon">💫</span>
+              </div>
+              <div className="instructions-content">
+                <div className="instruction-step">
+                  <span className="step-number">1</span>
+                  <p><strong>Select Folder</strong> to load your audio files</p>
+                </div>
+                <div className="instruction-step">
+                  <span className="step-number">2</span>
+                  <p><strong>Choose BGM</strong> for background ambiance between performances</p>
+                </div>
+                <div className="instruction-step">
+                  <span className="step-number">3</span>
+                  <p><strong>Select tracks</strong> for each performance slot and adjust volumes</p>
+                </div>
+                <div className="instruction-step">
+                  <span className="step-number">4</span>
+                  <p><strong>Start Performance</strong> - BGM auto-fades, then returns after completion</p>
+                </div>
+                <div className="instruction-step">
+                  <span className="step-number">5</span>
+                  <p><strong>Reset All</strong> when you're ready to start fresh</p>
+                </div>
+              </div>
+              <div className="instructions-footer">
+                <span className="footer-sparkle">✨</span>
+                <p className="instructions-tip">Tip: Performances play sequentially - start the next one when ready!</p>
+                <span className="footer-sparkle">✨</span>
+              </div>
             </div>
-            <div className="footer-spacer"></div>
-          </footer>
+          </section>
         </>
       )}
     </div>
