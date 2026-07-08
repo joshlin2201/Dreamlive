@@ -47,10 +47,12 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
-	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera can be used by the system file picker when importing files. Dream Live Pro itself never captures or stores photos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone can be used by the system file picker when recording a video to import. Dream Live Pro itself never records audio.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>The photo library can be opened by the system file picker when importing files. Dream Live Pro only reads audio files you choose.</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
 </dict>
