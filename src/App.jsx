@@ -136,13 +136,9 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
   );
 }
 
-const DEFAULT_AUDIO_FILES = [
-  { id: 'def-1', name: 'Aiscream 愛スクリム', path: './audio/Aiscream 愛スクリム.mp3' },
-  { id: 'def-2', name: 'TWICE LIKEY', path: './audio/TWICE LIKEY.mp3' },
-  { id: 'def-3', name: 'Watch Me', path: './audio/Watch Me.MP3' },
-  { id: 'def-4', name: 'more jump more', path: './audio/more jump more.mp3' },
-  { id: 'def-5', name: '碗碗Gravity=Reality', path: './audio/碗碗Gravity=Reality.mp3' },
-];
+// No audio ships with the app — staff import their own licensed tracks
+// via the Import Audio button (persisted in IndexedDB).
+const DEFAULT_AUDIO_FILES = [];
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
@@ -258,9 +254,9 @@ function App() {
           setAudioFiles(savedFiles);
           setCustomFolder('Saved audio files');
         } else {
-          // Fallback to bundled files
+          // Nothing imported yet — start empty
           setAudioFiles(DEFAULT_AUDIO_FILES);
-          setCustomFolder('Pre-loaded tracks');
+          setCustomFolder(null);
         }
       }
     } catch (error) {
@@ -679,9 +675,9 @@ function App() {
           </div>
         </div>
         <div className="header-controls">
-          <button className="folder-btn" onClick={handleSelectFolder} title="Select Audio Folder">
+          <button className="folder-btn" onClick={handleSelectFolder} title="Import Audio Files">
             <FolderOpen size={20} />
-            <span>Select Folder</span>
+            <span>Import Audio</span>
           </button>
           <button className="reset-all-btn" onClick={resetAll} title="Reset All">
             <RotateCcw size={20} />
@@ -703,6 +699,15 @@ function App() {
         </div>
       ) : (
         <>
+          {audioFiles.length === 0 && (
+            <div className="empty-library-banner">
+              <FolderOpen size={28} />
+              <div>
+                <strong>No audio imported yet ・ 音源がまだありません</strong>
+                <p>Tap "Import Audio" above to load your own music files (MP3, WAV, M4A, OGG, FLAC). They're saved on this device for next time.</p>
+              </div>
+            </div>
+          )}
           {/* Main Controls Row - BGM + Performance Counter */}
           <div className="main-controls-row">
             {/* Background Music Section */}

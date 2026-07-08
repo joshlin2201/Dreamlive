@@ -20,16 +20,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/icons/icon-192.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/icons/icon-192.png" />
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Fonts (self-hosted so the app works fully offline) -->
+    <link href="%PUBLIC_URL%/fonts/poppins-local.css" rel="stylesheet">
 
     <title>Dream Live Pro - Dreamland Maid Cafe</title>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker Registration (web/PWA only — skipped inside the native iOS app) -->
     <script>
-      if ('serviceWorker' in navigator) {
+      if ('serviceWorker' in navigator && !window.Capacitor && location.protocol.indexOf('http') === 0) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/service-worker.js')
             .then((registration) => {

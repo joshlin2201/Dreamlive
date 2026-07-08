@@ -188,6 +188,37 @@ body {
   display: none;
 }
 
+/* Empty library banner (shown until audio is imported) */
+.empty-library-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.875rem 1.25rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px dashed #f9a8d4;
+  border-radius: 16px;
+  color: #9d174d;
+}
+
+.empty-library-banner svg {
+  flex-shrink: 0;
+  color: #ec4899;
+}
+
+.empty-library-banner strong {
+  display: block;
+  font-size: 0.9375rem;
+  margin-bottom: 0.25rem;
+}
+
+.empty-library-banner p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #be185d;
+  line-height: 1.45;
+}
+
 /* ============================================
    SECTIONS - Layered Depth
    ============================================ */
