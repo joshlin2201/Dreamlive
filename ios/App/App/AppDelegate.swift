@@ -8,14 +8,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Configure AVAudioSession for background playback
+        // Configure AVAudioSession for playback (audio plays even with the silent switch on)
+        activateAudioSession()
+
+        // Live-show controller: keep the iPad awake so music never stops mid-performance
+        application.isIdleTimerDisabled = true
+
+        return true
+    }
+
+    private func activateAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-            try AVAudioSession.sharedInstance().setActive(true)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true)
         } catch {
             print("AVAudioSession configuration error: \(error)")
         }
-        return true
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -33,7 +42,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // Reclaim the audio session after another app (e.g. Spotify) took it while we
+        // were backgrounded. Without this, playback resumes into a dead session and
+        // tracks appear to play with no sound.
+        activateAudioSession()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

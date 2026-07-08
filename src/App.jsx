@@ -175,6 +175,56 @@ function App() {
   const perfGainNodeRefs = useRef([null, null, null, null]);
   const perfSourceNodeRefs = useRef([null, null, null, null]);
 
+  // Fade + notice bookkeeping
+  const fadeTimeoutRef = useRef(null);
+  const [notice, setNotice] = useState(null);
+  const noticeTimeoutRef = useRef(null);
+
+  const showNotice = (message, tone = 'info') => {
+    setNotice({ message, tone });
+    if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+    noticeTimeoutRef.current = setTimeout(() => setNotice(null), 3500);
+  };
+
+  // Bring the AudioContext back to life no matter what state iOS left it in.
+  // After another app (e.g. Spotify) takes the audio session, WebKit parks the
+  // context in a non-standard "interrupted" state — a plain `state === 'suspended'`
+  // check misses it and tracks then "play" silently into a dead context.
+  const ensureAudioReady = async () => {
+    if (!audioContextRef.current) {
+      initWebAudio();
+    }
+    const ctx = audioContextRef.current;
+    if (!ctx) return false;
+
+    if (ctx.state !== 'running') {
+      try {
+        await ctx.resume();
+      } catch (e) {
+        console.warn('AudioContext resume failed:', e);
+      }
+      // iOS occasionally needs a second nudge right after an interruption
+      if (ctx.state !== 'running') {
+        await new Promise(r => setTimeout(r, 120));
+        try { await ctx.resume(); } catch (e) { /* noop */ }
+      }
+    }
+    return ctx.state === 'running';
+  };
+
+  // play() that never fails silently
+  const playSafely = async (audio, label) => {
+    if (!audio) return false;
+    try {
+      await audio.play();
+      return true;
+    } catch (e) {
+      console.warn(`Playback failed (${label}):`, e);
+      showNotice(`Couldn't start ${label}. Tap play again.`, 'error');
+      return false;
+    }
+  };
+
   // Initialize Web Audio on first interaction
   const initWebAudio = () => {
     if (audioContextRef.current) return;
@@ -221,17 +271,42 @@ function App() {
     loadAudioFiles();
   }, []);
 
-  // Update progress bars
+  // Recover the audio session when returning from another app (Spotify, etc.)
   useEffect(() => {
+    const recover = () => {
+      if (document.visibilityState !== 'visible') return;
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state !== 'running') {
+        ctx.resume().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', recover);
+    window.addEventListener('focus', recover);
+    return () => {
+      document.removeEventListener('visibilitychange', recover);
+      window.removeEventListener('focus', recover);
+    };
+  }, []);
+
+  // Update progress bars (only ticks while something is actually playing)
+  useEffect(() => {
+    const anyPlaying = perfPlaying.some(Boolean);
+    if (!anyPlaying) return undefined;
+
     progressIntervalRef.current = setInterval(() => {
-      perfAudioRefs.current.forEach((audio, index) => {
-        if (audio && perfPlaying[index]) {
-          const newProgress = [...perfProgress];
-          newProgress[index] = audio.currentTime;
-          setPerfProgress(newProgress);
-        }
+      setPerfProgress(prev => {
+        let changed = false;
+        const next = prev.map((value, index) => {
+          const audio = perfAudioRefs.current[index];
+          if (audio && perfPlaying[index] && Math.abs(audio.currentTime - value) > 0.05) {
+            changed = true;
+            return audio.currentTime;
+          }
+          return value;
+        });
+        return changed ? next : prev;
       });
-    }, 100);
+    }, 200);
 
     return () => {
       if (progressIntervalRef.current) {
@@ -286,12 +361,38 @@ function App() {
 
         input.onchange = async (e) => {
           const files = Array.from(e.target.files);
-          const audioFiles = await processFilesForPWA(files);
-          setAudioFiles(audioFiles);
-          setCustomFolder(`${files.length} files selected`);
+          if (files.length === 0) return;
+          const imported = await processFilesForPWA(files);
+          if (imported.length === 0) {
+            showNotice('No audio files found in that selection.', 'error');
+            return;
+          }
+
+          // Stop everything referencing the old library before its URLs are revoked
+          if (bgAudioRef.current) bgAudioRef.current.pause();
+          perfAudioRefs.current.forEach(a => a && a.pause());
+          setBgPlaying(false);
+          setBgTrack('');
+          setPerfTracks(['', '', '', '']);
+          setPerfPlaying([false, false, false, false]);
+          setPerfProgress([0, 0, 0, 0]);
+          setPerfDurations([0, 0, 0, 0]);
+          setCurrentPerformance(null);
+
+          // Release blob URLs from the previous library so memory doesn't pile up
+          setAudioFiles(prev => {
+            prev.forEach(f => {
+              if (f.path && f.path.startsWith('blob:')) {
+                try { URL.revokeObjectURL(f.path); } catch (err) { /* noop */ }
+              }
+            });
+            return imported;
+          });
+          setCustomFolder(`${imported.length} track${imported.length === 1 ? '' : 's'} imported`);
+          showNotice(`Imported ${imported.length} track${imported.length === 1 ? '' : 's'} ♪`);
 
           // Save to IndexedDB for persistence
-          await saveFilesToIndexedDB(audioFiles);
+          await saveFilesToIndexedDB(imported);
         };
 
         input.click();
@@ -399,15 +500,8 @@ function App() {
   };
 
   // Background music controls
-  const toggleBackgroundMusic = () => {
+  const toggleBackgroundMusic = async () => {
     if (!bgTrack || !bgAudioRef.current) return;
-
-    // Resume/Init AudioContext on interaction
-    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
-    } else if (!audioContextRef.current) {
-      initWebAudio();
-    }
 
     // Don't allow playing background music during a performance
     if (currentPerformance !== null && !bgPlaying) {
@@ -417,10 +511,18 @@ function App() {
     if (bgPlaying) {
       bgAudioRef.current.pause();
       setBgPlaying(false);
-    } else {
-      bgAudioRef.current.play();
-      setBgPlaying(true);
+      return;
     }
+
+    // Handles first-tap init AND recovery after Spotify/other-app interruptions
+    await ensureAudioReady();
+    if (bgGainNodeRef.current && audioContextRef.current) {
+      const g = bgGainNodeRef.current.gain;
+      g.cancelScheduledValues(audioContextRef.current.currentTime);
+      g.value = bgVolume;
+    }
+    const ok = await playSafely(bgAudioRef.current, 'background music');
+    if (ok) setBgPlaying(true);
   };
 
   const handleBgVolumeChange = (e) => {
@@ -467,7 +569,9 @@ function App() {
       g.setValueAtTime(g.value, now);
       g.exponentialRampToValueAtTime(0.001, now + 2.5);
 
-      setTimeout(() => {
+      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = setTimeout(() => {
+        fadeTimeoutRef.current = null;
         audio.pause();
         g.setValueAtTime(0, ctx.currentTime);
         setBgPlaying(false);
@@ -483,48 +587,57 @@ function App() {
     }
   };
 
-  // Fade background music in (1.5 seconds)
-  const fadeInBackground = () => {
+  // Fade background music in (after a performance ends)
+  const fadeInBackground = async () => {
     if (!bgAudioRef.current || !bgTrack) return;
 
     setIsFading(true);
     const audio = bgAudioRef.current;
     const target = bgVolume;
 
+    await ensureAudioReady();
+
     if (bgGainNodeRef.current && audioContextRef.current) {
       const g = bgGainNodeRef.current.gain;
       const ctx = audioContextRef.current;
       const now = ctx.currentTime;
 
-      audio.play();
+      const ok = await playSafely(audio, 'background music');
+      if (!ok) { setIsFading(false); return; }
       setBgPlaying(true);
 
       g.cancelScheduledValues(now);
       g.setValueAtTime(0.001, now);
       g.exponentialRampToValueAtTime(target || 0.5, now + 2.5);
 
-      setTimeout(() => {
+      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = setTimeout(() => {
+        fadeTimeoutRef.current = null;
         setIsFading(false);
       }, 2600);
     } else {
       audio.volume = target;
-      audio.play();
-      setBgPlaying(true);
+      const ok = await playSafely(audio, 'background music');
+      if (ok) setBgPlaying(true);
       setIsFading(false);
     }
   };
 
   // Start performance
-  const startPerformance = (index) => {
-    if (!perfTracks[index] || currentPerformance !== null) return;
+  const startPerformance = async (index) => {
+    // isFading guard: prevents double-starting two performances during the BGM crossfade
+    if (!perfTracks[index] || currentPerformance !== null || isFading) return;
 
     if (!bgPlaying) {
-      alert("Please start the background music first!");
+      showNotice('Start the background music first ・ BGMを先に再生してください');
       return;
     }
 
+    // Make sure the audio engine survived any app switch before we commit to the fade
+    await ensureAudioReady();
+
     // Fade out background music, then start performance
-    fadeOutBackground(() => {
+    fadeOutBackground(async () => {
       setCurrentPerformance(index);
       const audio = perfAudioRefs.current[index];
 
@@ -548,7 +661,13 @@ function App() {
       if (audio) {
         audio.currentTime = 0;
         audio.volume = perfVolumes[index]; // Fallback
-        audio.play();
+        await ensureAudioReady();
+        const ok = await playSafely(audio, `Performance ${index + 1}`);
+        if (!ok) {
+          setCurrentPerformance(null);
+          fadeInBackground();
+          return;
+        }
 
         const newPlaying = [...perfPlaying];
         newPlaying[index] = true;
@@ -558,19 +677,26 @@ function App() {
   };
 
   // Toggle pause for individual performance
-  const togglePerfPause = (index) => {
+  const togglePerfPause = async (index) => {
     const audio = perfAudioRefs.current[index];
     if (!audio) return;
 
-    const newPlaying = [...perfPlaying];
     if (perfPlaying[index]) {
       audio.pause();
+      const newPlaying = [...perfPlaying];
       newPlaying[index] = false;
-    } else {
-      audio.play();
-      newPlaying[index] = true;
+      setPerfPlaying(newPlaying);
+      return;
     }
-    setPerfPlaying(newPlaying);
+
+    // Resuming after an app switch needs the context revived too
+    await ensureAudioReady();
+    const ok = await playSafely(audio, `Performance ${index + 1}`);
+    if (ok) {
+      const newPlaying = [...perfPlaying];
+      newPlaying[index] = true;
+      setPerfPlaying(newPlaying);
+    }
   };
 
   // Handle performance end
@@ -612,6 +738,19 @@ function App() {
 
   // Reset all
   const resetAll = () => {
+    // Destructive for the current show state — confirm first
+    const confirmed = window.confirm(
+      'Reset the whole show? This stops all audio and clears track selections and completed status.'
+    );
+    if (!confirmed) return;
+
+    // Cancel any in-flight fade so its callback can't start a performance after reset
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = null;
+    }
+    setIsFading(false);
+
     // Pause background
     if (bgAudioRef.current) {
       bgAudioRef.current.pause();
@@ -660,6 +799,11 @@ function App() {
 
   return (
     <div className="App">
+      {notice && (
+        <div className={`app-toast ${notice.tone}`} role="status" aria-live="polite">
+          {notice.message}
+        </div>
+      )}
 
       <header className="app-header">
         <div className="header-content">
@@ -730,7 +874,9 @@ function App() {
               )}
               <div className="section-header">
                 <h2 className="section-title">Background Music ・ BGM</h2>
-                {currentPerformance !== null ? (
+                {isFading ? (
+                  <span className="bg-status-badge fading">〜 Fading</span>
+                ) : currentPerformance !== null ? (
                   <span className="bg-status-badge queued">⏸ Queued</span>
                 ) : bgPlaying ? (
                   <span className="bg-status-badge playing">▶ Playing</span>
@@ -761,7 +907,8 @@ function App() {
                   <button
                     className={`play-btn ${bgPlaying ? 'is-playing' : ''}`}
                     onClick={toggleBackgroundMusic}
-                    disabled={!bgTrack || currentPerformance !== null}
+                    disabled={!bgTrack || currentPerformance !== null || isFading}
+                    aria-label={bgPlaying ? 'Pause background music' : 'Play background music'}
                   >
                     {bgPlaying ? <Pause size={24} /> : <Play size={24} />}
                   </button>
@@ -916,15 +1063,21 @@ function App() {
                             )}
                           </button>
                         ) : (
-                          <button
-                            className="start-performance-btn"
-                            onClick={() => startPerformance(index)}
-                            disabled={!perfTracks[index] || currentPerformance !== null || performanceStatus[index] || !bgPlaying} // Guardrail: Must be playing BGM
-                            title={!bgPlaying ? "Start background music first" : "Start Performance"}
-                          >
-                            <Play size={18} />
-                            <span>Start</span>
-                          </button>
+                          <>
+                            <button
+                              className="start-performance-btn"
+                              onClick={() => startPerformance(index)}
+                              disabled={!perfTracks[index] || currentPerformance !== null || performanceStatus[index] || !bgPlaying || isFading} // Guardrail: Must be playing BGM
+                              title={!bgPlaying ? "Start background music first" : "Start Performance"}
+                              aria-label={`Start performance ${index + 1}`}
+                            >
+                              <Play size={18} />
+                              <span>Start</span>
+                            </button>
+                            {!bgPlaying && !performanceStatus[index] && currentPerformance === null && (
+                              <p className="perf-hint">▶ Play BGM first ・ BGMを先に再生</p>
+                            )}
+                          </>
                         )}
                       </div>
                     </>
@@ -952,7 +1105,7 @@ function App() {
               <div className="instructions-content">
                 <div className="instruction-step">
                   <span className="step-number">1</span>
-                  <p><strong>Select Folder</strong> to load your audio files</p>
+                  <p><strong>Import Audio</strong> to load your music files (saved on this iPad for next time)</p>
                 </div>
                 <div className="instruction-step">
                   <span className="step-number">2</span>

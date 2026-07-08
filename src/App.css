@@ -188,6 +188,58 @@ body {
   display: none;
 }
 
+/* Toast notice */
+.app-toast {
+  position: fixed;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 13000;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  background: rgba(157, 23, 77, 0.95);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(157, 23, 77, 0.35);
+  animation: toast-in 0.25s ease-out;
+  max-width: min(90vw, 560px);
+  text-align: center;
+}
+
+.app-toast.error {
+  background: rgba(190, 24, 93, 0.97);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Hint under a disabled START button */
+.perf-hint {
+  margin: 0.375rem 0 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #db2777;
+  text-align: center;
+  opacity: 0.75;
+}
+
+/* BGM fading badge */
+.bg-status-badge.fading {
+  background: linear-gradient(135deg, #fbcfe8, #f9a8d4);
+  color: #9d174d;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* Respect iPad safe areas (rounded corners / home indicator) */
+.App {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Empty library banner (shown until audio is imported) */
 .empty-library-banner {
   display: flex;
