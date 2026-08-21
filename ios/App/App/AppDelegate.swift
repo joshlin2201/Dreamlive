@@ -42,10 +42,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Reclaim the audio session after another app (e.g. Spotify) took it while we
-        // were backgrounded. Without this, playback resumes into a dead session and
+        // Reclaim the audio session after an interruption while we were backgrounded.
+        // Without this, playback resumes into a dead session and
         // tracks appear to play with no sound.
         activateAudioSession()
+        application.isIdleTimerDisabled = true
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
