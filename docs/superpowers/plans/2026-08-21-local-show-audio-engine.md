@@ -80,7 +80,7 @@ This session prohibited subagents, so the requested independent review was perfo
 
 - [x] Remove generated browser artifacts from the working tree without touching user-owned changes.
 - [x] Review the final diff and run the verification commands once from the final tree.
-- [ ] Commit and push `codex/local-show-audio-engine`; do not force or merge the unrelated rewritten `origin/main` history.
+- [x] Commit and push `codex/local-show-audio-engine`; do not force or merge the unrelated rewritten `origin/main` history.
 - [x] Upload the signed build to App Store Connect using the authenticated Xcode account.
 - [x] Verify whether Apple reports uploaded, processing, processed/TestFlight-ready, submitted for review, approved, pending developer release, or live; report only the exact observed state and any remaining Apple-controlled gate. Observed: upload accepted and package processing; not submitted for review or live.
 
