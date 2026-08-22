@@ -49,6 +49,13 @@ export function movePlaylistItem({
   };
 }
 
+export function queueDisplacement({ index, fromIndex, toIndex }) {
+  if (fromIndex === null || toIndex === null || fromIndex === toIndex || index === fromIndex) return 0;
+  if (fromIndex < toIndex && index > fromIndex && index <= toIndex) return -1;
+  if (fromIndex > toIndex && index >= toIndex && index < fromIndex) return 1;
+  return 0;
+}
+
 export function shufflePlaylist({ playlist, currentIndex = 0, random = Math.random }) {
   if (playlist.length < 2) return unchanged(playlist, currentIndex);
   const safeCurrentIndex = Math.max(0, Math.min(currentIndex, playlist.length - 1));

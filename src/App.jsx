@@ -5,13 +5,11 @@ import {
   Check,
   ChevronDown,
   FolderOpen,
-  Headphones,
   Pause,
   Play,
   RotateCcw,
   Search,
-  SlidersHorizontal,
-  Square,
+  Trash2,
   Volume2,
   X,
 } from 'lucide-react';
@@ -32,6 +30,12 @@ import {
 } from './audio/playlist';
 import { processAudioFiles } from './audio/importAudio';
 import { CLICKLESS_MUTE_SECONDS, scheduleGainEnvelope } from './audio/gainEnvelope';
+import {
+  audioIdFromRef,
+  isManagedAudioRef,
+  reconcileLibraryRemoval,
+  toLibraryMetadata,
+} from './audio/libraryStorage';
 import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import AudioVisualizer from './components/AudioVisualizer';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
@@ -272,12 +276,11 @@ function SakuraSoundscape({ active }) {
 // No audio ships with the app — staff import their own licensed tracks
 // via the Import Audio button (persisted in IndexedDB).
 const DEFAULT_AUDIO_FILES = [];
-const DEFAULT_MASTER_VOLUME = 0.82;
-const MASTER_LEVEL_KEY = 'dreamlive-master-level-v1';
 const displayTrackName = (name) => name.replace(/\.(mp3|m4a|aac|wav|ogg|flac)$/i, '');
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
+  const audioFilesRef = useRef([]);
   const [customFolder, setCustomFolder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [importState, setImportState] = useState({ active: false, completed: 0, total: 0 });
@@ -306,21 +309,13 @@ function App() {
   const [showPhase, setShowPhase] = useState(SHOW_PHASE.SETUP);
   const [showError, setShowError] = useState('');
 
-  // The device volume is a physical room baseline. This master is the one
-  // global show level DreamLIVE can control and restore for every operator.
-  const [masterVolume, setMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
-  const [savedMasterVolume, setSavedMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
-  const [soundCheckOpen, setSoundCheckOpen] = useState(false);
-  const [isCheckingSound, setIsCheckingSound] = useState(false);
-  const [setupExpanded, setSetupExpanded] = useState(true);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const soundCheckDialogRef = useRef(null);
-  const soundCheckCloseRef = useRef(null);
-  const soundCheckReturnFocusRef = useRef(null);
+  const [libraryRemoval, setLibraryRemoval] = useState(null);
   const resetDialogRef = useRef(null);
   const resetCancelRef = useRef(null);
   const resetReturnFocusRef = useRef(null);
-  const hasReachedReadyRef = useRef(false);
+  const libraryCancelRef = useRef(null);
+  const libraryReturnFocusRef = useRef(null);
 
   // Fade state
   const [isFading, setIsFading] = useState(false);
@@ -337,6 +332,9 @@ function App() {
   // Web Audio for Performance Tracks
   const perfGainNodeRefs = useRef([null, null, null, null]);
   const perfSourceNodeRefs = useRef([null, null, null, null]);
+  const [managedSources, setManagedSources] = useState({});
+  const managedSourceUrlsRef = useRef(new Map());
+  const sourceLoadGenerationRef = useRef(0);
 
   // Fade + notice bookkeeping
   const fadeTimeoutRef = useRef(null);
@@ -354,16 +352,6 @@ function App() {
     noticeTimeoutRef.current = setTimeout(() => setNotice(null), 3500);
   };
 
-  const openSoundCheck = () => {
-    soundCheckReturnFocusRef.current = document.activeElement;
-    setSoundCheckOpen(true);
-  };
-
-  const closeSoundCheck = () => {
-    setSoundCheckOpen(false);
-    window.requestAnimationFrame(() => soundCheckReturnFocusRef.current?.focus());
-  };
-
   const openResetConfirmation = () => {
     resetReturnFocusRef.current = document.activeElement;
     setResetConfirmOpen(true);
@@ -372,6 +360,16 @@ function App() {
   const closeResetConfirmation = () => {
     setResetConfirmOpen(false);
     window.requestAnimationFrame(() => resetReturnFocusRef.current?.focus());
+  };
+
+  const requestLibraryRemoval = (paths) => {
+    libraryReturnFocusRef.current = document.activeElement;
+    setLibraryRemoval({ paths });
+  };
+
+  const closeLibraryRemoval = () => {
+    setLibraryRemoval(null);
+    window.requestAnimationFrame(() => libraryReturnFocusRef.current?.focus());
   };
 
   // Bring the AudioContext back to life no matter what state iOS left it in.
@@ -506,10 +504,10 @@ function App() {
       compressor.release.value = 0.18;
 
       const masterGain = ctx.createGain();
-      masterGain.gain.value = masterVolume;
+      masterGain.gain.value = 1;
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.82;
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.16;
       analyser.minDecibels = -82;
       analyser.maxDecibels = -12;
       compressor.connect(masterGain);
@@ -566,49 +564,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const savedLevel = Number.parseFloat(window.localStorage.getItem(MASTER_LEVEL_KEY));
-    if (!Number.isFinite(savedLevel)) return;
-    const safeLevel = Math.min(Math.max(savedLevel, 0), 1);
-    setMasterVolume(safeLevel);
-    setSavedMasterVolume(safeLevel);
-  }, []);
-
-  useEffect(() => {
-    if (!soundCheckOpen) return undefined;
-
-    const dialog = soundCheckDialogRef.current;
-    const focusable = () => Array.from(dialog?.querySelectorAll(
-      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    ) || []);
-    const focusTimer = window.requestAnimationFrame(() => soundCheckCloseRef.current?.focus());
-    const handleDialogKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeSoundCheck();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const controls = focusable();
-      if (controls.length === 0) return;
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleDialogKeyDown);
-    return () => {
-      window.cancelAnimationFrame(focusTimer);
-      document.removeEventListener('keydown', handleDialogKeyDown);
-    };
-  }, [soundCheckOpen]);
-
-  useEffect(() => {
     if (!resetConfirmOpen) return undefined;
 
     const focusTimer = window.requestAnimationFrame(() => resetCancelRef.current?.focus());
@@ -640,25 +595,32 @@ function App() {
   }, [resetConfirmOpen]);
 
   useEffect(() => {
-    if (!soundCheckOpen && !resetConfirmOpen) return undefined;
+    if (!libraryRemoval) return undefined;
+    const focusTimer = window.requestAnimationFrame(() => libraryCancelRef.current?.focus());
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeLibraryRemoval();
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [libraryRemoval]);
+
+  useEffect(() => {
+    if (!resetConfirmOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [soundCheckOpen, resetConfirmOpen]);
-
-  useEffect(() => {
-    const masterGain = masterGainNodeRef.current;
-    const context = audioContextRef.current;
-    if (!masterGain) return;
-    if (context) {
-      masterGain.gain.cancelScheduledValues(context.currentTime);
-      masterGain.gain.setTargetAtTime(masterVolume, context.currentTime, 0.015);
-    } else {
-      masterGain.gain.value = masterVolume;
-    }
-  }, [masterVolume]);
+  }, [resetConfirmOpen]);
 
   useEffect(() => {
     playbackStateRef.current = { bgPlaying, currentPerformance, perfPlaying };
@@ -832,14 +794,23 @@ function App() {
             }
 
             const known = new Map(audioFiles.map(file => [file.id, file]));
-            const additions = accepted.filter(file => !known.has(file.id));
+            const importedAdditions = accepted.filter(file => !known.has(file.id));
+            const persisted = await saveFilesToIndexedDB(importedAdditions);
+            const additions = importedAdditions.map(file => {
+              if (persisted) return toLibraryMetadata(file);
+              const { fileData, ...sessionMetadata } = file;
+              return sessionMetadata;
+            });
+            const additionsById = new Map(additions.map(file => [file.id, file]));
             const merged = [...audioFiles, ...additions]
               .sort((a, b) => a.name.localeCompare(b.name));
-            accepted.filter(file => known.has(file.id)).forEach(file => URL.revokeObjectURL(file.path));
+            accepted.forEach(file => {
+              if (known.has(file.id) || persisted) URL.revokeObjectURL(file.path);
+            });
             const queueAdditions = autoQueue
               ? accepted
-                .map(file => known.get(file.id)?.path || file.path)
-                .filter(path => !bgPlaylist.includes(path))
+                .map(file => known.get(file.id)?.path || additionsById.get(file.id)?.path)
+                .filter(path => path && !bgPlaylist.includes(path))
               : [];
 
             if (additions.length === 0 && queueAdditions.length === 0) {
@@ -861,8 +832,6 @@ function App() {
             const addedCount = autoQueue ? queueAdditions.length : additions.length;
             showNotice(`${autoQueue ? 'Added' : 'Imported'} ${addedCount} track${addedCount === 1 ? '' : 's'}${autoQueue ? ' to the BGM queue' : ''}.${rejectedCopy}`);
 
-            // Save to IndexedDB for persistence
-            if (additions.length > 0) await saveFilesToIndexedDB(merged);
           } catch (error) {
             console.error('Audio import failed:', error);
             showNotice("Audio import stopped unexpectedly. Try the files again.", 'error');
@@ -881,69 +850,195 @@ function App() {
   // IndexedDB functions for PWA
   const openDB = () => {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('DreamlandAudioDB', 1);
+      const request = indexedDB.open('DreamlandAudioDB', 2);
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        if (!db.objectStoreNames.contains('audioFiles')) {
-          db.createObjectStore('audioFiles', { keyPath: 'id' });
+        const transaction = event.target.transaction;
+        const metadataStore = db.objectStoreNames.contains('audioMetadata')
+          ? transaction.objectStore('audioMetadata')
+          : db.createObjectStore('audioMetadata', { keyPath: 'id' });
+        const blobStore = db.objectStoreNames.contains('audioBlobs')
+          ? transaction.objectStore('audioBlobs')
+          : db.createObjectStore('audioBlobs', { keyPath: 'id' });
+
+        // Migrate the original all-in-one records without ever reading the
+        // entire library into the renderer at once.
+        if (db.objectStoreNames.contains('audioFiles')) {
+          const cursorRequest = transaction.objectStore('audioFiles').openCursor();
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) return;
+            const legacyFile = cursor.value;
+            metadataStore.put(toLibraryMetadata(legacyFile));
+            if (legacyFile.fileData) {
+              blobStore.put({ id: legacyFile.id, fileData: legacyFile.fileData });
+            }
+            cursor.continue();
+          };
         }
       };
     });
   };
 
   const saveFilesToIndexedDB = async (files) => {
+    if (files.length === 0) return true;
+    let db;
     try {
-      const db = await openDB();
+      db = await openDB();
       await new Promise((resolve, reject) => {
-        const transaction = db.transaction(['audioFiles'], 'readwrite');
-        const store = transaction.objectStore('audioFiles');
+        const transaction = db.transaction(['audioMetadata', 'audioBlobs'], 'readwrite');
+        const metadataStore = transaction.objectStore('audioMetadata');
+        const blobStore = transaction.objectStore('audioBlobs');
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
         transaction.onabort = () => reject(transaction.error || new Error('Audio save was interrupted.'));
-        store.clear();
-        files.forEach(file => store.put(file));
+        files.forEach(file => {
+          metadataStore.put(toLibraryMetadata(file));
+          if (file.fileData) blobStore.put({ id: file.id, fileData: file.fileData });
+        });
       });
       return true;
     } catch (error) {
       console.error('Error saving to IndexedDB:', error);
       showNotice('Tracks are loaded, but this iPad could not save them for next time.', 'error');
       return false;
+    } finally {
+      db?.close();
     }
   };
 
   const loadFilesFromIndexedDB = async () => {
+    let db;
     try {
-      const db = await openDB();
-      const transaction = db.transaction(['audioFiles'], 'readonly');
-      const store = transaction.objectStore('audioFiles');
+      db = await openDB();
+      const transaction = db.transaction(['audioMetadata'], 'readonly');
+      const store = transaction.objectStore('audioMetadata');
 
       return new Promise((resolve, reject) => {
         const request = store.getAll();
-        request.onsuccess = () => {
-          const files = request.result;
-          // Recreate blob URLs from stored file data
-          const filesWithUrls = files.map(file => {
-            if (file.fileData) {
-              return {
-                ...file,
-                path: URL.createObjectURL(file.fileData)
-              };
-            }
-            return file;
-          });
-          resolve(filesWithUrls);
-        };
+        request.onsuccess = () => resolve(request.result.map(toLibraryMetadata));
         request.onerror = () => reject(request.error);
+        transaction.oncomplete = () => db?.close();
       });
     } catch (error) {
+      db?.close();
       console.error('Error loading from IndexedDB:', error);
       return [];
     }
   };
+
+  const loadTrackBlobFromIndexedDB = async (trackRef) => {
+    const id = audioIdFromRef(trackRef);
+    if (!id) return null;
+    const db = await openDB();
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction(['audioBlobs'], 'readonly');
+        const request = transaction.objectStore('audioBlobs').get(id);
+        request.onsuccess = () => resolve(request.result?.fileData || null);
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
+  };
+
+  const deleteTracksFromIndexedDB = async (trackRefs) => {
+    const ids = trackRefs.map(audioIdFromRef).filter(Boolean);
+    if (ids.length === 0) return;
+    const db = await openDB();
+    try {
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(['audioMetadata', 'audioBlobs'], 'readwrite');
+        const metadataStore = transaction.objectStore('audioMetadata');
+        const blobStore = transaction.objectStore('audioBlobs');
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error('Audio removal was interrupted.'));
+        ids.forEach(id => {
+          metadataStore.delete(id);
+          blobStore.delete(id);
+        });
+      });
+    } finally {
+      db.close();
+    }
+  };
+
+  useEffect(() => {
+    audioFilesRef.current = audioFiles;
+  }, [audioFiles]);
+
+  useEffect(() => {
+    const generation = sourceLoadGenerationRef.current + 1;
+    sourceLoadGenerationRef.current = generation;
+    const needed = new Set([bgTrack, ...perfTracks].filter(isManagedAudioRef));
+    let changed = false;
+
+    managedSourceUrlsRef.current.forEach((url, trackRef) => {
+      if (needed.has(trackRef)) return;
+      URL.revokeObjectURL(url);
+      managedSourceUrlsRef.current.delete(trackRef);
+      changed = true;
+    });
+    if (changed) setManagedSources(Object.fromEntries(managedSourceUrlsRef.current));
+
+    needed.forEach(async trackRef => {
+      if (managedSourceUrlsRef.current.has(trackRef)) return;
+      try {
+        const blob = await loadTrackBlobFromIndexedDB(trackRef);
+        if (!blob || sourceLoadGenerationRef.current !== generation) return;
+        const url = URL.createObjectURL(blob);
+        managedSourceUrlsRef.current.set(trackRef, url);
+        setManagedSources(Object.fromEntries(managedSourceUrlsRef.current));
+      } catch (error) {
+        console.error('Stored audio could not be loaded:', error);
+      }
+    });
+
+    return () => {
+      if (sourceLoadGenerationRef.current === generation) {
+        sourceLoadGenerationRef.current += 1;
+      }
+    };
+  }, [bgTrack, perfTracks]);
+
+  useEffect(() => () => {
+    sourceLoadGenerationRef.current += 1;
+    if (noticeTimeoutRef.current) window.clearTimeout(noticeTimeoutRef.current);
+    if (fadeTimeoutRef.current) window.clearTimeout(fadeTimeoutRef.current);
+    if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+    if (seekTimeoutRefs.current.bg) window.clearTimeout(seekTimeoutRefs.current.bg);
+    seekTimeoutRefs.current.perf.forEach(timer => timer && window.clearTimeout(timer));
+
+    bgAudioRef.current?.pause();
+    perfAudioRefs.current.forEach(audio => audio?.pause());
+    managedSourceUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    managedSourceUrlsRef.current.clear();
+    audioFilesRef.current.forEach(file => {
+      if (file.path?.startsWith('blob:')) URL.revokeObjectURL(file.path);
+    });
+
+    bgSourceNodeRef.current?.disconnect();
+    perfSourceNodeRefs.current.forEach(source => source?.disconnect());
+    bgGainNodeRef.current?.disconnect();
+    perfGainNodeRefs.current.forEach(gain => gain?.disconnect());
+    masterCompressorRef.current?.disconnect();
+    masterGainNodeRef.current?.disconnect();
+    analyserNodeRef.current?.disconnect();
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+    }
+  }, []);
+
+  const trackSource = trackRef => (
+    isManagedAudioRef(trackRef) ? (managedSources[trackRef] || '') : trackRef
+  );
+  const bgTrackSource = trackSource(bgTrack);
 
   const trackName = (path) => {
     const name = audioFiles.find(file => file.path === path)?.name;
@@ -1007,7 +1102,7 @@ function App() {
 
   const playBackgroundAudio = async () => {
     const audio = bgAudioRef.current;
-    if (!bgTrack || !audio || currentPerformance !== null) return false;
+    if (!bgTrack || !bgTrackSource || !audio || currentPerformance !== null) return false;
 
     const ready = await ensureAudioReady();
     if (!ready) {
@@ -1133,12 +1228,12 @@ function App() {
   useEffect(() => {
     setBgProgress(0);
     setBgDuration(0);
-    if (!bgPlaying || currentPerformance !== null || !bgTrack) return;
+    if (!bgPlaying || currentPerformance !== null || !bgTrack || !bgTrackSource) return;
     if (bgAudioRef.current) {
       bgAudioRef.current.load();
       playBackgroundAudio();
     }
-  }, [bgTrack]);
+  }, [bgTrack, bgTrackSource]);
 
   const handleBgVolumeChange = (e) => {
     const newVolume = parseFloat(e.target.value);
@@ -1164,60 +1259,6 @@ function App() {
     } else if (perfAudioRefs.current[index]) {
       perfAudioRefs.current[index].volume = newVolume;
     }
-  };
-
-  const handleMasterVolumeChange = (value) => {
-    const nextVolume = Math.min(Math.max(Number.parseFloat(value), 0), 1);
-    if (!Number.isFinite(nextVolume)) return;
-    setMasterVolume(nextVolume);
-  };
-
-  const restoreShowLevel = () => {
-    setMasterVolume(savedMasterVolume);
-    showNotice(`Show level restored to ${Math.round(savedMasterVolume * 100)}%.`);
-  };
-
-  const playSoundCheck = async () => {
-    if (bgPlaying || currentPerformance !== null || isFading || isCheckingSound) return;
-    setIsCheckingSound(true);
-    const ready = await ensureAudioReady();
-    const context = audioContextRef.current;
-    const destination = masterCompressorRef.current;
-    if (!ready || !context || !destination) {
-      setIsCheckingSound(false);
-      showNotice('Sound check couldn’t start. Tap Play test sound again.', 'error');
-      return;
-    }
-
-    const scheduleTone = (frequency, startAt) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(frequency, startAt);
-      gain.gain.setValueAtTime(0.0001, startAt);
-      gain.gain.exponentialRampToValueAtTime(0.075, startAt + 0.035);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.32);
-      oscillator.connect(gain);
-      gain.connect(destination);
-      oscillator.start(startAt);
-      oscillator.stop(startAt + 0.34);
-      oscillator.onended = () => {
-        oscillator.disconnect();
-        gain.disconnect();
-      };
-    };
-
-    const now = context.currentTime + 0.03;
-    scheduleTone(523.25, now);
-    scheduleTone(659.25, now + 0.34);
-    window.setTimeout(() => setIsCheckingSound(false), 850);
-  };
-
-  const saveOutputLevel = () => {
-    window.localStorage.setItem(MASTER_LEVEL_KEY, String(masterVolume));
-    setSavedMasterVolume(masterVolume);
-    closeSoundCheck();
-    showNotice(`Output level saved at ${Math.round(masterVolume * 100)}%.`);
   };
 
   const BGM_FADE_SECONDS = 1.1;
@@ -1326,7 +1367,7 @@ function App() {
 
   // Start performance through one ordered, test-covered show flow.
   const startPerformance = async (index) => {
-    if (!perfTracks[index] || currentPerformance !== null || isFading || transitionLockRef.current) return;
+    if (!trackSource(perfTracks[index]) || currentPerformance !== null || isFading || transitionLockRef.current) return;
     transitionLockRef.current = true;
     setShowError('');
     setCurrentPerformance(index);
@@ -1437,46 +1478,69 @@ function App() {
     }
   };
 
-  const stopAllAudio = async (announce = true) => {
-    transitionLockRef.current = false;
-    cancelFade();
-    setIsFading(false);
-    setBgPlaying(false);
-    setPerfPlaying([false, false, false, false]);
-    setCurrentPerformance(null);
-    setShowError('');
-    setShowPhase(SHOW_PHASE.SETUP);
-    await Promise.all([
-      pauseClicklessly(bgAudioRef.current, bgGainNodeRef.current),
-      ...perfAudioRefs.current.map((audio, index) => (
-        pauseClicklessly(audio, perfGainNodeRefs.current[index])
-      )),
-    ]);
-    if (announce) showNotice('All audio stopped. Your show setup is preserved.');
-  };
-
-  // Reset all
-  const resetAll = async () => {
-    await stopAllAudio(false);
-    if (bgAudioRef.current) {
-      bgAudioRef.current.currentTime = 0;
-    }
-
-    perfAudioRefs.current.forEach((audio, index) => {
-      if (audio) {
-        audio.currentTime = 0;
-      }
+  const clearPerformanceCues = async () => {
+    await Promise.all(perfAudioRefs.current.map((audio, index) => (
+      pauseClicklessly(audio, perfGainNodeRefs.current[index])
+    )));
+    perfAudioRefs.current.forEach(audio => {
+      if (audio) audio.currentTime = 0;
     });
-
-    setBgPlaylist([]);
-    setBgIndex(0);
     setPerfTracks(['', '', '', '']);
+    setPerfPlaying([false, false, false, false]);
     setPerfProgress([0, 0, 0, 0]);
     setPerfDurations([0, 0, 0, 0]);
     setPerformanceStatus([false, false, false, false]);
+    setCurrentPerformance(null);
+    setShowPhase(SHOW_PHASE.SETUP);
     setResetConfirmOpen(false);
+    showNotice('Performances cleared. BGM queue and imported tracks were kept.');
+  };
 
-    showNotice('Show reset. Ready for a fresh setup.');
+  const confirmLibraryRemoval = async () => {
+    const paths = libraryRemoval?.paths || [];
+    if (paths.length === 0) return;
+    const removed = new Set(paths);
+    const reconciled = reconcileLibraryRemoval({
+      files: audioFiles,
+      playlist: bgPlaylist,
+      currentIndex: bgIndex,
+      performances: perfTracks,
+      completed: performanceStatus,
+      paths,
+    });
+    try {
+      await deleteTracksFromIndexedDB(paths);
+      paths.forEach(path => {
+        const managedUrl = managedSourceUrlsRef.current.get(path);
+        if (managedUrl) {
+          URL.revokeObjectURL(managedUrl);
+          managedSourceUrlsRef.current.delete(path);
+        } else if (path.startsWith('blob:')) {
+          URL.revokeObjectURL(path);
+        }
+      });
+      setManagedSources(Object.fromEntries(managedSourceUrlsRef.current));
+      setAudioFiles(reconciled.files);
+      setCustomFolder(reconciled.files.length ? `${reconciled.files.length} track${reconciled.files.length === 1 ? '' : 's'} ready` : null);
+      setBgPlaylist(reconciled.playlist);
+      setBgIndex(reconciled.currentIndex);
+      if (removed.has(bgTrack)) {
+        bgAudioRef.current?.pause();
+        if (bgAudioRef.current) bgAudioRef.current.currentTime = 0;
+        setBgPlaying(false);
+        setBgProgress(0);
+        setBgDuration(0);
+      }
+      setPerfTracks(reconciled.performances);
+      setPerfProgress(previous => previous.map((value, index) => (removed.has(perfTracks[index]) ? 0 : value)));
+      setPerfDurations(previous => previous.map((value, index) => (removed.has(perfTracks[index]) ? 0 : value)));
+      setPerformanceStatus(reconciled.completed);
+      setLibraryRemoval(null);
+      showNotice(`Removed ${paths.length} track${paths.length === 1 ? '' : 's'} from this device.`);
+    } catch (error) {
+      console.error('Audio removal failed:', error);
+      showNotice('Those tracks could not be removed. Try again.', 'error');
+    }
   };
 
   // Format time in mm:ss
@@ -1487,11 +1551,7 @@ function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const completedCount = performanceStatus.filter(status => status).length;
   const assignedCount = perfTracks.filter(Boolean).length;
-  const completedAssignedCount = performanceStatus.filter((status, index) => (
-    status && Boolean(perfTracks[index])
-  )).length;
   const readiness = getShowReadiness({ assignedPerformances: assignedCount });
   const deckState = getShowDeckState({
     ready: readiness.ready,
@@ -1499,68 +1559,26 @@ function App() {
     completed: performanceStatus,
     currentPerformance,
   });
-  const runDeck = deckState.mode !== 'prep' && !setupExpanded;
+  const runDeck = deckState.mode !== 'prep';
   const focusPerformanceIndex = deckState.activePerformanceIndex ?? deckState.nextPerformanceIndex;
-  const queuedPerformanceIndexes = [0, 1, 2, 3].filter(index => (
-    perfTracks[index]
-    && !performanceStatus[index]
-    && index !== deckState.activePerformanceIndex
-    && index !== deckState.nextPerformanceIndex
-  ));
 
-  useEffect(() => {
-    if (deckState.mode === 'prep') {
-      hasReachedReadyRef.current = false;
-      setSetupExpanded(true);
-      return;
-    }
-    if (deckState.mode === 'ready' && !hasReachedReadyRef.current) {
-      setSetupExpanded(false);
-    }
-    hasReachedReadyRef.current = true;
-  }, [deckState.mode]);
-  const activePhases = [
-    SHOW_PHASE.TRANSITIONING,
-    SHOW_PHASE.LIVE,
-    SHOW_PHASE.PAUSED,
-    SHOW_PHASE.RESTORING,
-  ];
-  const visiblePhase = showError
-    ? SHOW_PHASE.ERROR
-    : activePhases.includes(showPhase) ? showPhase : readiness.phase;
-  const phaseLabels = {
-    [SHOW_PHASE.SETUP]: readiness.label,
-    [SHOW_PHASE.READY]: 'Show ready ・ 準備完了',
-    [SHOW_PHASE.TRANSITIONING]: 'Transitioning ・ 切り替え中',
-    [SHOW_PHASE.LIVE]: 'Performance live ・ 出演中',
-    [SHOW_PHASE.PAUSED]: 'Performance paused ・ 一時停止',
-    [SHOW_PHASE.RESTORING]: 'Restoring BGM ・ BGM復帰中',
-    [SHOW_PHASE.ERROR]: 'Needs attention ・ 確認が必要',
-  };
-  const currentPerformanceName = currentPerformance === null
-    ? ''
-    : trackName(perfTracks[currentPerformance]);
   const nextBgIndex = nextPlaylistIndex({
     currentIndex: bgIndex,
     length: bgPlaylist.length,
     repeat: repeatPlaylist,
   });
   const nextBgTrack = nextBgIndex === null ? '' : bgPlaylist[nextBgIndex];
-  const phaseDetail = showError
-    || (visiblePhase === SHOW_PHASE.TRANSITIONING && currentPerformance !== null
-      ? (bgPlaying
-        ? `Lowering BGM → Performance ${currentPerformance + 1}`
-        : `Starting Performance ${currentPerformance + 1}`) : '')
-    || (visiblePhase === SHOW_PHASE.LIVE ? currentPerformanceName : '')
-    || (visiblePhase === SHOW_PHASE.PAUSED ? `${currentPerformanceName} · Tap Resume when ready` : '')
-    || (visiblePhase === SHOW_PHASE.RESTORING ? `Returning to ${trackName(bgTrack)}` : '')
-    || (audioFiles.length === 0 ? 'Import audio, then assign the first performance' : '')
-    || (assignedCount === 0 ? 'Assign the next performance track' : '')
-    || `${assignedCount} performance${assignedCount === 1 ? '' : 's'} ready${bgPlaying ? ' · BGM playing' : (bgTrack ? ' · BGM ready' : '')}`;
-
+  const libraryRemovalPaths = libraryRemoval?.paths || [];
+  const libraryRemovalSet = new Set(libraryRemovalPaths);
+  const libraryQueueReferences = bgPlaylist.filter(path => libraryRemovalSet.has(path)).length;
+  const libraryCueReferences = perfTracks.filter(path => libraryRemovalSet.has(path)).length;
+  const libraryRemovalBlocked = libraryRemovalPaths.some(path => (
+    ((bgPlaying || isFading) && path === bgTrack)
+    || (currentPerformance !== null && path === perfTracks[currentPerformance])
+  ));
   return (
     <div className="App">
-      <SakuraSoundscape active={bgPlaying || perfPlaying.some(Boolean) || isFading || isCheckingSound} />
+      <SakuraSoundscape active={bgPlaying || perfPlaying.some(Boolean) || isFading} />
       {notice && (
         <div className={`app-toast ${notice.tone}`} role="status" aria-live="polite">
           {notice.message}
@@ -1579,144 +1597,39 @@ function App() {
           <p className="app-subtitle">Show controller ・ ライブコントローラー</p>
         </div>
         <div className="header-controls">
-          {!runDeck && (
-            <button
-              className="folder-btn"
-              onClick={() => handleSelectFolder()}
-              title="Add licensed tracks to this device"
-              disabled={importState.active}
-              aria-busy={importState.active}
-            >
-              <FolderOpen size={20} />
-              <span>{importState.active
-                ? `Checking ${importState.completed}/${importState.total}`
-                : 'Import audio'}</span>
-            </button>
-          )}
-          {deckState.mode !== 'prep' && !runDeck && (
-            <button
-              type="button"
-              className="setup-toggle-btn"
-              onClick={() => setSetupExpanded(previous => !previous)}
-            >
-              <SlidersHorizontal size={18} />
-              <span>Run show</span>
-            </button>
-          )}
           <button
-            className="output-status-btn"
-            onClick={openSoundCheck}
-            aria-label={`Output level, DreamLIVE level ${Math.round(masterVolume * 100)}%`}
+            type="button"
+            className={`tracks-library-button ${libraryOpen ? 'is-active' : ''}`}
+            onClick={() => setLibraryOpen(previous => !previous)}
+            aria-expanded={libraryOpen}
+            aria-controls="bgm-library-panel"
           >
-            <SlidersHorizontal size={18} />
-            <span>Output level</span>
-            <strong>{Math.round(masterVolume * 100)}%</strong>
-          </button>
-          <button
-            className={`stop-audio-btn ${(bgPlaying || currentPerformance !== null || isFading) ? 'is-active' : ''}`}
-            onClick={() => stopAllAudio()}
-            title="Stop all audio"
-          >
-            <Square size={18} fill="currentColor" />
-            <span>Stop audio</span>
+            <Search size={17} />
+            <span>Tracks</span>
+            <strong>{audioFiles.length}</strong>
           </button>
         </div>
       </header>
 
-      {soundCheckOpen && (
-        <div
-          className="output-dialog-backdrop"
-          onPointerDown={event => {
-            if (event.target === event.currentTarget) closeSoundCheck();
-          }}
-        >
-          <section
-            ref={soundCheckDialogRef}
-            className="output-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="output-dialog-title"
-            tabIndex="-1"
-          >
-            <div className="output-dialog-header">
-              <div className="output-dialog-icon" aria-hidden="true"><Headphones size={22} /></div>
-              <div>
-                <span className="section-kicker">Room output</span>
-                <h2 id="output-dialog-title">Output level ・ 音量</h2>
-              </div>
-              <button
-                ref={soundCheckCloseRef}
-                type="button"
-                className="dialog-close"
-                onClick={closeSoundCheck}
-                aria-label="Close output level"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      <AudioLibraryPanel
+        open={libraryOpen}
+        files={audioFiles}
+        playlist={bgPlaylist}
+        displayName={displayTrackName}
+        onAdd={addBackgroundTrack}
+        onImport={() => handleSelectFolder({ autoQueue: true })}
+        onRemove={path => requestLibraryRemoval([path])}
+        onClear={() => requestLibraryRemoval(audioFiles.map(file => file.path))}
+        onClose={() => setLibraryOpen(false)}
+      />
 
-            <div className="output-step">
-              <span className="output-step-number">1</span>
-              <div className="output-step-copy">
-                <strong>Device baseline</strong>
-                <span>Use the side buttons and leave it at 7 of 10 bars.</span>
-              </div>
-              <div className="device-level-meter" aria-label="Device volume target: 7 of 10 bars">
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(bar => (
-                  <span key={bar} className={bar < 7 ? 'filled' : ''} />
-                ))}
-              </div>
-            </div>
-
-            <div className="output-step output-step-master">
-              <span className="output-step-number">2</span>
-              <div className="output-step-copy">
-                <strong>DreamLIVE output</strong>
-                <span>This controls every BGM and performance track together.</span>
-              </div>
-              <div className="master-level-control">
-                <Volume2 size={18} aria-hidden="true" />
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={masterVolume}
-                  onChange={event => handleMasterVolumeChange(event.target.value)}
-                  aria-label="DreamLIVE master output"
-                />
-                <strong>{Math.round(masterVolume * 100)}%</strong>
-              </div>
-              {Math.abs(masterVolume - savedMasterVolume) > 0.005 && (
-                <button type="button" className="restore-level-btn" onClick={restoreShowLevel}>
-                  Restore {Math.round(savedMasterVolume * 100)}%
-                </button>
-              )}
-            </div>
-
-            <p className="output-device-note">
-              DreamLIVE cannot read or change the device’s physical volume. Keep the device at 7 bars during the show; use DreamLIVE for every other level change.
-            </p>
-
-            <div className="output-dialog-actions">
-              <button
-                type="button"
-                className="test-sound-btn"
-                onClick={playSoundCheck}
-                disabled={bgPlaying || currentPerformance !== null || isFading || isCheckingSound}
-              >
-                <Play size={18} />
-                <span>{isCheckingSound
-                  ? 'Playing test…'
-                  : (bgPlaying || currentPerformance !== null ? 'Show audio active' : 'Play test sound')}</span>
-              </button>
-              <button type="button" className="confirm-output-btn" onClick={saveOutputLevel}>
-                <Check size={18} />
-                <span>Save level</span>
-              </button>
-            </div>
-          </section>
-        </div>
+      {showError && (
+        <section className="show-alert-bar" role="alert">
+          <strong>{showError}</strong>
+          <button type="button" onClick={() => setShowError('')} aria-label="Dismiss audio alert">
+            <X size={16} />
+          </button>
+        </section>
       )}
 
       {resetConfirmOpen && (
@@ -1734,44 +1647,65 @@ function App() {
             aria-labelledby="reset-dialog-title"
             aria-describedby="reset-dialog-description"
           >
-            <div className="reset-dialog-mark" aria-hidden="true"><RotateCcw size={22} /></div>
-            <span className="section-kicker">New show setup ・ 新しいセット</span>
-            <h2 id="reset-dialog-title">Reset this show? ・ リセットしますか</h2>
+            <div className="reset-dialog-mark" aria-hidden="true"><Trash2 size={22} /></div>
+            <span className="section-kicker">Performance assignments ・ 出演設定</span>
+            <h2 id="reset-dialog-title">Clear all performances? ・ 出演を消去</h2>
             <p id="reset-dialog-description">
-              This stops all audio and clears the BGM playlist, performance assignments, and completed cues. Imported audio stays on this device.
+              This removes the four performance assignments and their completion history. Your BGM queue and imported tracks stay exactly as they are.
             </p>
             <div className="reset-dialog-actions">
               <button ref={resetCancelRef} type="button" className="keep-setup-btn" onClick={closeResetConfirmation}>
                 Keep setup
               </button>
-              <button type="button" className="confirm-reset-btn" onClick={resetAll}>
-                <RotateCcw size={18} />
-                Reset show
+              <button type="button" className="confirm-reset-btn" onClick={clearPerformanceCues}>
+                <Trash2 size={17} />
+                Clear performances
               </button>
             </div>
           </section>
         </div>
       )}
 
-      <section className={`show-command-bar phase-${visiblePhase} ${runDeck ? 'run-deck' : ''}`} aria-live={visiblePhase === SHOW_PHASE.ERROR ? 'assertive' : 'polite'}>
-        <div className="show-phase-block">
-          <span className="show-phase-dot" aria-hidden="true" />
-          <div>
-            <span className="show-phase-eyebrow">Show status ・ 進行状況</span>
-            <strong>{phaseLabels[visiblePhase]}</strong>
-          </div>
+      {libraryRemoval && (
+        <div
+          className="output-dialog-backdrop reset-dialog-backdrop"
+          onPointerDown={event => {
+            if (event.target === event.currentTarget) closeLibraryRemoval();
+          }}
+        >
+          <section
+            className="reset-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="library-remove-title"
+            aria-describedby="library-remove-description"
+          >
+            <div className="reset-dialog-mark" aria-hidden="true"><Trash2 size={22} /></div>
+            <span className="section-kicker">On-device library ・ 音源</span>
+            <h2 id="library-remove-title">
+              {libraryRemovalPaths.length === audioFiles.length ? 'Clear the track library?' : 'Remove this track?'}
+            </h2>
+            <p id="library-remove-description">
+              This permanently removes {libraryRemovalPaths.length === 1 ? 'the track' : `${libraryRemovalPaths.length} tracks`} from this device
+              {libraryQueueReferences || libraryCueReferences
+                ? ` and clears ${libraryQueueReferences} queue reference${libraryQueueReferences === 1 ? '' : 's'} and ${libraryCueReferences} performance assignment${libraryCueReferences === 1 ? '' : 's'}.`
+                : '. Your show assignments are otherwise unchanged.'}
+            </p>
+            {libraryRemovalBlocked && (
+              <p className="dialog-danger-note">Pause the active track before removing it.</p>
+            )}
+            <div className="reset-dialog-actions">
+              <button ref={libraryCancelRef} type="button" className="keep-setup-btn" onClick={closeLibraryRemoval}>
+                Keep tracks
+              </button>
+              <button type="button" className="confirm-reset-btn" onClick={confirmLibraryRemoval} disabled={libraryRemovalBlocked}>
+                <Trash2 size={17} />
+                {libraryRemovalPaths.length === 1 ? 'Remove track' : 'Clear library'}
+              </button>
+            </div>
+          </section>
         </div>
-        <div className="show-phase-message">
-          <p className="show-phase-detail">{phaseDetail}</p>
-          {showError && (
-            <button type="button" onClick={() => setShowError('')}>Dismiss alert</button>
-          )}
-        </div>
-        <div className="show-now-playing">
-          <span>{currentPerformance !== null ? 'On stage' : 'BGM now'}</span>
-          <strong>{currentPerformanceName || (bgTrack ? trackName(bgTrack) : 'Nothing selected')}</strong>
-        </div>
-      </section>
+      )}
 
       {customFolder && (
         <div className="folder-info">
@@ -1786,24 +1720,10 @@ function App() {
         </div>
       ) : (
         <>
-          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck' : ''} ${currentPerformance !== null ? 'is-live' : ''}`}>
+          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''}`}>
             <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''}`}>
               <div className="section-header">
-                <div>
-                  <span className="section-kicker">Continuous room audio ・ 店内BGM</span>
-                  <h2 className="section-title">BGM playlist</h2>
-                </div>
-                {isFading ? (
-                  <span className="bg-status-badge fading">Transitioning</span>
-                ) : currentPerformance !== null ? (
-                  <span className="bg-status-badge queued">Held safely</span>
-                ) : bgPlaying ? (
-                  <span className="bg-status-badge playing">Playing</span>
-                ) : bgPlaylist.length > 0 ? (
-                  <span className="bg-status-badge ready">Ready</span>
-                ) : (
-                  <span className="bg-status-badge idle">Build playlist</span>
-                )}
+                <h2 className="section-title">Room music <span className="japanese-label">ルームBGM</span></h2>
               </div>
               {audioFiles.length === 0 && (
                 <div className="library-inline-state">
@@ -1818,42 +1738,32 @@ function App() {
                 </div>
               )}
               <div className="bg-music-container">
-                <BgmTransport
-                  currentTrack={bgTrack ? trackName(bgTrack) : ''}
-                  nextTrack={nextBgTrack ? trackName(nextBgTrack) : ''}
-                  elapsed={bgProgress}
-                  duration={bgDuration}
-                  formatTime={formatTime}
-                  playing={bgPlaying}
-                  playbackLocked={currentPerformance !== null || isFading}
-                  onPrevious={previousBackground}
-                  onToggle={toggleBackgroundMusic}
-                  onNext={advanceBackground}
-                  onSeek={handleBgSeek}
-                  repeat={repeatPlaylist}
-                  onToggleRepeat={() => setRepeatPlaylist(previous => !previous)}
-                  volume={bgVolume}
-                  onVolumeChange={handleBgVolumeChange}
-                  libraryOpen={libraryOpen}
-                  onToggleLibrary={() => setLibraryOpen(previous => !previous)}
-                  libraryCount={audioFiles.length}
-                />
-
-                <AudioLibraryPanel
-                  open={libraryOpen}
-                  files={audioFiles}
-                  playlist={bgPlaylist}
-                  displayName={displayTrackName}
-                  onAdd={addBackgroundTrack}
-                  onImport={() => handleSelectFolder({ autoQueue: true })}
-                  onClose={() => setLibraryOpen(false)}
-                />
+                {runDeck && (
+                  <BgmTransport
+                    key="run"
+                    currentTrack={bgTrack ? trackName(bgTrack) : ''}
+                    nextTrack={nextBgTrack ? trackName(nextBgTrack) : ''}
+                    elapsed={bgProgress}
+                    duration={bgDuration}
+                    formatTime={formatTime}
+                    playing={bgPlaying}
+                    playbackLocked={currentPerformance !== null || isFading || !bgTrackSource}
+                    onPrevious={previousBackground}
+                    onToggle={toggleBackgroundMusic}
+                    onNext={advanceBackground}
+                    onSeek={handleBgSeek}
+                    volume={bgVolume}
+                    onVolumeChange={handleBgVolumeChange}
+                    showProgress={currentPerformance === null}
+                  />
+                )}
 
                 <BgmQueue
                   playlist={bgPlaylist}
                   currentIndex={bgIndex}
                   heldIndex={currentPerformance !== null ? bgIndex : null}
                   playbackLocked={currentPerformance !== null || isFading}
+                  showPlayback={runDeck}
                   trackName={trackName}
                   onPlay={playBackgroundFrom}
                   onMove={moveBackgroundTrack}
@@ -1863,7 +1773,7 @@ function App() {
 
                 <audio
                   ref={bgAudioRef}
-                  src={bgTrack || undefined}
+                  src={bgTrackSource || undefined}
                   preload="auto"
                   onTimeUpdate={event => setBgProgress(event.currentTarget.currentTime)}
                   onLoadedMetadata={event => {
@@ -1884,17 +1794,16 @@ function App() {
             <section className="performances-section">
               <div className="section-header">
                 <div>
-                  <span className="section-kicker">On-stage cues ・ 出演キュー</span>
                   <h2 className="section-title">Performances ・ パフォーマンス</h2>
                 </div>
-                <div
-                  className="performance-summary"
-                  aria-label={runDeck
-                    ? `${completedAssignedCount} of ${assignedCount} assigned performances complete`
-                    : `${completedCount} of 4 performance slots complete, ${assignedCount} assigned`}
-                >
-                  <strong>{runDeck ? `${completedAssignedCount}/${assignedCount}` : `${completedCount}/4`}</strong>
-                  <span>{runDeck ? 'complete' : `${assignedCount} assigned`}</span>
+                <div className="setup-stage-actions">
+                  <div
+                    className="performance-summary"
+                    aria-label={`${assignedCount} of 4 performances assigned`}
+                  >
+                    <strong>{assignedCount}/4</strong>
+                    <span>ready</span>
+                  </div>
                 </div>
               </div>
             {runDeck && (
@@ -1906,26 +1815,53 @@ function App() {
                       <div>
                         <span className="run-focus-kicker">
                           {isFading
-                            ? 'Transition in progress ・ 切り替え中'
-                            : (showPhase === SHOW_PHASE.PAUSED ? 'Paused on stage ・ 一時停止' : 'On stage ・ 出演中')}
+                            ? <>Transition <span className="japanese-label">トランジション中</span></>
+                            : (showPhase === SHOW_PHASE.PAUSED
+                              ? <>Paused <span className="japanese-label">ポーズ中</span></>
+                              : <>On stage <span className="japanese-label">オンステージ</span></>)}
                         </span>
-                        <p>Performance {focusPerformanceIndex + 1}</p>
                         <h2>{trackName(perfTracks[focusPerformanceIndex])}</h2>
                       </div>
-                      <div className="run-focus-header-actions">
-                        <span className={`run-live-badge ${showPhase === SHOW_PHASE.PAUSED ? 'paused' : ''}`}>
-                          {isFading ? 'Starting' : (showPhase === SHOW_PHASE.PAUSED ? 'Paused' : 'Live')}
-                        </span>
-                      </div>
                     </div>
-                    <AudioVisualizer
-                      analyserRef={analyserNodeRef}
-                      active={perfPlaying[focusPerformanceIndex] || isFading}
-                      variant="focus"
-                      status={isFading
-                        ? 'Performance transitioning'
-                        : (perfPlaying[focusPerformanceIndex] ? 'Performance live' : 'Performance paused')}
-                    />
+                    <div className="run-action-row">
+                      <button
+                        type="button"
+                        className="control-button run-rail-button"
+                        onClick={() => handleSeek(focusPerformanceIndex, 0)}
+                        disabled={isFading}
+                        aria-label="Restart performance"
+                        title="Restart performance"
+                      >
+                        <RotateCcw size={17} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : ''}`}
+                        onClick={() => togglePerfPause(focusPerformanceIndex)}
+                        disabled={isFading}
+                      >
+                        {perfPlaying[focusPerformanceIndex] ? <Pause size={18} /> : <Play size={18} />}
+                        <span>{perfPlaying[focusPerformanceIndex] ? 'Pause' : 'Resume'}</span>
+                      </button>
+                      <details className="run-level-menu">
+                        <summary aria-label={`Performance level ${Math.round(perfVolumes[focusPerformanceIndex] * 100)} percent`}>
+                          <Volume2 size={17} aria-hidden="true" />
+                          <span>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</span>
+                        </summary>
+                        <label className="run-level-control">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={perfVolumes[focusPerformanceIndex]}
+                            onChange={event => handlePerfVolumeChange(focusPerformanceIndex, event.target.value)}
+                            aria-label="Live performance volume"
+                          />
+                          <strong>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</strong>
+                        </label>
+                      </details>
+                    </div>
                     <div className="run-progress">
                       <span>{formatTime(perfProgress[focusPerformanceIndex])}</span>
                       <input
@@ -1940,94 +1876,100 @@ function App() {
                       />
                       <span>{formatTime(perfDurations[focusPerformanceIndex])}</span>
                     </div>
-                    <div className="run-action-row">
-                      <button
-                        type="button"
-                        className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : ''}`}
-                        onClick={() => togglePerfPause(focusPerformanceIndex)}
-                        disabled={isFading}
-                      >
-                        {perfPlaying[focusPerformanceIndex] ? <Pause size={24} /> : <Play size={24} />}
-                        <span>{perfPlaying[focusPerformanceIndex] ? 'Pause performance' : 'Resume performance'}</span>
-                      </button>
-                      <button type="button" className="control-button secondary-button run-edit-setup" onClick={() => setSetupExpanded(true)}>
-                        <SlidersHorizontal size={18} /> Edit setup
-                      </button>
-                    </div>
-                    <div className="run-next-preview">
-                      <span>Next cue</span>
-                      <strong>
-                        {deckState.nextPerformanceIndex === null
-                          ? 'Final performance'
-                          : `Performance ${deckState.nextPerformanceIndex + 1} · ${trackName(perfTracks[deckState.nextPerformanceIndex])}`}
-                      </strong>
+                    <div className="run-signal-strip">
+                      <AudioVisualizer
+                        analyserRef={analyserNodeRef}
+                        active={perfPlaying[focusPerformanceIndex] || isFading}
+                        variant="focus"
+                        status={isFading
+                          ? 'Transitioning'
+                          : (perfPlaying[focusPerformanceIndex] ? 'Live' : 'Paused')}
+                      />
                     </div>
                   </>
                 ) : deckState.nextPerformanceIndex !== null ? (
                   <>
                     <div className="run-focus-heading ready-heading">
                       <div>
-                        <span className="run-focus-kicker">Next on stage ・ 次の出演</span>
-                        <p>Performance {deckState.nextPerformanceIndex + 1}</p>
+                        <span className="run-focus-kicker">Next on stage <span className="japanese-label">ネクストステージ</span></span>
                         <h2>{trackName(perfTracks[deckState.nextPerformanceIndex])}</h2>
                       </div>
-                      <span className="run-ready-count">{deckState.remainingAssignedCount} remaining</span>
                     </div>
-                    <AudioVisualizer
-                      analyserRef={analyserNodeRef}
-                      active={false}
-                      variant="focus"
-                      status="Performance ready"
-                    />
                     <div className="run-action-row">
                       <button
                         type="button"
                         className="run-primary-action"
                         onClick={() => startPerformance(deckState.nextPerformanceIndex)}
-                        disabled={isFading}
+                        disabled={isFading || !trackSource(perfTracks[deckState.nextPerformanceIndex])}
                       >
-                        <Play size={26} />
-                        <span className="run-action-label">
-                          <span>Start performance {deckState.nextPerformanceIndex + 1}</span>
-                          <small>パフォーマンスを開始</small>
-                        </span>
+                        <Play size={18} />
+                        <span>Start</span>
                       </button>
-                      <button type="button" className="control-button secondary-button run-edit-setup" onClick={() => setSetupExpanded(true)}>
-                        <SlidersHorizontal size={18} /> Edit setup
-                      </button>
+                      <details className="run-level-menu">
+                        <summary aria-label={`Performance level ${Math.round(perfVolumes[deckState.nextPerformanceIndex] * 100)} percent`}>
+                          <Volume2 size={17} aria-hidden="true" />
+                          <span>{Math.round(perfVolumes[deckState.nextPerformanceIndex] * 100)}%</span>
+                        </summary>
+                        <label className="run-level-control">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={perfVolumes[deckState.nextPerformanceIndex]}
+                            onChange={event => handlePerfVolumeChange(deckState.nextPerformanceIndex, event.target.value)}
+                            aria-label="Next performance volume"
+                          />
+                          <strong>{Math.round(perfVolumes[deckState.nextPerformanceIndex] * 100)}%</strong>
+                        </label>
+                      </details>
                     </div>
-                    <p className="run-safety-note">
-                      {bgPlaying
-                        ? 'BGM lowers first, then returns automatically when the performance ends.'
-                        : 'Starts directly. Queued BGM begins automatically when the performance ends.'}
-                    </p>
+                    <div className="run-progress is-idle">
+                      <span>0:00</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max={perfDurations[deckState.nextPerformanceIndex] || 1}
+                        value="0"
+                        disabled
+                        aria-label={`Performance ${deckState.nextPerformanceIndex + 1} ready`}
+                      />
+                      <span>{formatTime(perfDurations[deckState.nextPerformanceIndex])}</span>
+                    </div>
+                    <div className="run-signal-strip">
+                      <AudioVisualizer
+                        analyserRef={analyserNodeRef}
+                        active={false}
+                        variant="focus"
+                        status="Ready"
+                      />
+                    </div>
                   </>
                 ) : (
                   <div className="run-complete-state">
                     <Check size={28} />
                     <div>
-                      <span className="run-focus-kicker">Show complete ・ 公演完了</span>
-                      <h2>All assigned performances are done</h2>
-                      <p>{bgTrack ? 'BGM continues. Edit setup if another cue is needed.' : 'Edit setup to add another cue.'}</p>
-                      <button type="button" className="control-button secondary-button run-edit-setup" onClick={() => setSetupExpanded(true)}>
-                        <SlidersHorizontal size={18} /> Edit setup
-                      </button>
+                      <span className="run-focus-kicker">Show complete <span className="japanese-label">ショー完了</span></span>
+                      <h2>All performances complete</h2>
+                      <p>{bgTrack ? 'BGM continues. Add another performance below when needed.' : 'Add another performance below.'}</p>
                     </div>
                   </div>
                 )}
-
-                {queuedPerformanceIndexes.length > 0 && (
-                  <div className="run-cue-queue" aria-label="Later performance cues">
-                    <span>Later</span>
-                    {queuedPerformanceIndexes.map(index => (
-                      <div key={index}>
-                        <strong>#{index + 1}</strong>
-                        <p>{trackName(perfTracks[index])}</p>
-                        <span>Ready</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              </div>
+            )}
+            {runDeck && (
+              <div className="run-setup-header">
+                <span>Performance queue <span className="japanese-label">パフォーマンスキュー</span></span>
+                <button
+                  type="button"
+                  className="control-button clear-performances-button"
+                  onClick={openResetConfirmation}
+                  disabled={currentPerformance !== null || isFading}
+                  title={currentPerformance !== null ? 'Finish the current performance before clearing assignments' : 'Clear performance assignments'}
+                >
+                  <Trash2 size={15} />
+                  <span>Clear performances</span>
+                </button>
               </div>
             )}
             <div className="performances-grid">
@@ -2036,20 +1978,20 @@ function App() {
                   key={index}
                   className={`performance-card ${currentPerformance === index ? 'active' : ''
                     } ${performanceStatus[index] ? 'completed' : ''}`}
+                  aria-label={`Performance ${index + 1}`}
                 >
                   <div className="perf-header">
                     <div className="perf-number">#{index + 1}</div>
-                    <h3 className="perf-title">Performance {index + 1}</h3>
                     {currentPerformance === index && perfPlaying[index] ? (
-                      <span className="perf-status-badge playing">Live</span>
+                      <span className="perf-status-badge playing" aria-label="Live" title="Live" />
                     ) : currentPerformance === index && !perfPlaying[index] ? (
-                      <span className="perf-status-badge paused">{isFading ? 'Transitioning' : 'Paused'}</span>
+                      <span className="perf-status-badge paused" aria-label={isFading ? 'Transitioning' : 'Paused'} title={isFading ? 'Transitioning' : 'Paused'} />
                     ) : performanceStatus[index] ? (
-                      <span className="perf-status-badge completed">Done</span>
+                      <span className="perf-status-badge completed" aria-label="Done" title="Done" />
                     ) : perfTracks[index] ? (
-                      <span className="perf-status-badge ready">Ready</span>
+                      <span className="perf-status-badge ready" aria-label="Ready" title="Ready" />
                     ) : (
-                      <span className="perf-status-badge idle">Empty</span>
+                      <span className="perf-status-badge idle" aria-label="Empty" title="Empty" />
                     )}
                   </div>
 
@@ -2070,82 +2012,9 @@ function App() {
                     />
                   </div>
 
-                  {perfTracks[index] && (
-                    <>
-                      {/* Volume Control */}
-                      <div className="perf-volume">
-                        <span className="volume-control-label">Track level</span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={perfVolumes[index]}
-                          onChange={(e) => handlePerfVolumeChange(index, e.target.value)}
-                          className="volume-slider"
-                          aria-label={`Performance ${index + 1} volume`}
-                        />
-                        <span className="volume-label">{Math.round(perfVolumes[index] * 100)}%</span>
-                      </div>
-
-                      {/* Progress Bar */}
-                      {perfDurations[index] > 0 && (
-                        <div className="progress-bar-container">
-                          <span className="time-label">{formatTime(perfProgress[index])}</span>
-                          <input
-                            type="range"
-                            min="0"
-                            max={perfDurations[index]}
-                            step="0.1"
-                            value={perfProgress[index]}
-                            onChange={(e) => handleSeek(index, e.target.value)}
-                            className="progress-bar"
-                            aria-label={`Seek Performance ${index + 1}`}
-                          />
-                          <span className="time-label">{formatTime(perfDurations[index])}</span>
-                        </div>
-                      )}
-
-                      {/* Play Controls */}
-                      <div className="perf-controls">
-                        {currentPerformance === index ? (
-                          <button
-                            className={`pause-btn ${perfPlaying[index] ? 'is-playing' : ''}`}
-                            onClick={() => togglePerfPause(index)}
-                          >
-                            {perfPlaying[index] ? (
-                              <>
-                                <Pause size={20} />
-                                <span>Pause</span>
-                              </>
-                            ) : (
-                              <>
-                                <Play size={20} />
-                                <span>Resume</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              className="start-performance-btn"
-                              onClick={() => startPerformance(index)}
-                              disabled={!perfTracks[index] || currentPerformance !== null || isFading}
-                              title={performanceStatus[index] ? 'Replay performance' : 'Start performance'}
-                              aria-label={`${performanceStatus[index] ? 'Replay' : 'Start'} performance ${index + 1}`}
-                            >
-                              <Play size={18} />
-                              <span>{performanceStatus[index] ? 'Replay performance' : 'Start performance'}</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-
                   <audio
                     ref={el => perfAudioRefs.current[index] = el}
-                    src={perfTracks[index] || undefined}
+                    src={trackSource(perfTracks[index]) || undefined}
                     preload="metadata"
                     onEnded={() => handlePerformanceEnd(index)}
                     onLoadedMetadata={() => handleLoadedMetadata(index)}
@@ -2155,24 +2024,6 @@ function App() {
             </div>
             </section>
           </main>
-          {!runDeck && (
-            <footer className="setup-footer">
-              <div>
-                <strong>Show setup</strong>
-                <span>Changes save on this device. Reset only when preparing a different show.</span>
-              </div>
-              <button
-                type="button"
-                className="reset-all-btn"
-                onClick={openResetConfirmation}
-                disabled={bgPlaylist.length === 0 && assignedCount === 0 && completedCount === 0}
-                title="Clear this show setup"
-              >
-                <RotateCcw size={18} />
-                <span>Reset show</span>
-              </button>
-            </footer>
-          )}
         </>
       )}
     </div>

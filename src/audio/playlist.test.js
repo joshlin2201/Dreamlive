@@ -4,6 +4,7 @@ import {
   movePlaylistItem,
   nextPlaylistIndex,
   previousPlaylistAction,
+  queueDisplacement,
   removePlaylistItem,
   shufflePlaylist,
 } from './playlist';
@@ -43,6 +44,13 @@ describe('background playlist rules', () => {
     expect(movePlaylistItem({
       playlist: ['a', 'b', 'c'], fromIndex: 0, toIndex: 1, currentIndex: 0, lockedIndex: 0,
     }).changed).toBe(false);
+  });
+
+  test('displaces rows smoothly around the dragged queue item', () => {
+    expect(queueDisplacement({ index: 1, fromIndex: 3, toIndex: 1 })).toBe(1);
+    expect(queueDisplacement({ index: 2, fromIndex: 3, toIndex: 1 })).toBe(1);
+    expect(queueDisplacement({ index: 2, fromIndex: 0, toIndex: 2 })).toBe(-1);
+    expect(queueDisplacement({ index: 3, fromIndex: 0, toIndex: 2 })).toBe(0);
   });
 
   test('shuffles the queue without changing the selected current track', () => {

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderOpen, ListPlus, Search, X } from 'lucide-react';
+import { FolderOpen, ListPlus, Search, Trash2, X } from 'lucide-react';
 import { filterAudioLibrary } from '../audio/playlist';
 
-function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport, onClose }) {
+function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport, onRemove, onClear, onClose }) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef(null);
@@ -64,10 +64,10 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
           value={query}
           onChange={event => { setQuery(event.target.value); setActiveIndex(0); }}
           onKeyDown={handleKeyDown}
-          placeholder="Search hundreds of tracks…"
+          placeholder="Search tracks"
           aria-label="Search track library"
         />
-        <span>{total} result{total === 1 ? '' : 's'}</span>
+        <span>{total}</span>
       </div>
       {results.length > 0 ? (
         <div ref={listRef} className="library-results" role="listbox" aria-label="Matching tracks">
@@ -84,11 +84,21 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
               >
                 <span className="library-track-index">{String(index + 1).padStart(2, '0')}</span>
                 <strong title={displayName(file.name)}>{displayName(file.name)}</strong>
-                {queued ? (
-                  <span className="queued-label">In queue</span>
-                ) : (
-                  <button type="button" className="library-add-button" onClick={() => onAdd(file.path)}>Add</button>
-                )}
+                <div className="library-row-actions">
+                  {queued ? (
+                    <span className="queued-label">Queued</span>
+                  ) : (
+                    <button type="button" className="library-add-button" onClick={() => onAdd(file.path)}>Queue</button>
+                  )}
+                  <button
+                    type="button"
+                    className="library-remove-button"
+                    onClick={() => onRemove(file.path)}
+                    aria-label={`Remove ${displayName(file.name)} from this device`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -101,9 +111,14 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
           <span>Import another file or try a different title.</span>
         </div>
       )}
-      <button type="button" className="control-button secondary-button library-import-button" onClick={onImport}>
-        <FolderOpen size={18} /> Import to BGM
-      </button>
+      <div className="library-footer-actions">
+        <button type="button" className="control-button secondary-button library-import-button" onClick={onImport}>
+          <FolderOpen size={17} /> Import
+        </button>
+        <button type="button" className="control-button library-clear-button" onClick={onClear} disabled={files.length === 0}>
+          <Trash2 size={15} /> Clear library
+        </button>
+      </div>
     </section>
   );
 }
