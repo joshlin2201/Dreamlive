@@ -39,6 +39,21 @@ describe('background playlist rules', () => {
     expect(nextPlaylistIndex({ currentIndex: 2, length: 3, repeat: false })).toBeNull();
   });
 
+  test('loops only the selected track when single-track loop is active', () => {
+    expect(nextPlaylistIndex({
+      currentIndex: 1,
+      length: 3,
+      repeat: true,
+      loopCurrent: true,
+    })).toBe(1);
+    expect(nextPlaylistIndex({
+      currentIndex: 1,
+      length: 3,
+      repeat: true,
+      loopCurrent: false,
+    })).toBe(2);
+  });
+
   test('inserts a unique track next or at the end without losing the current item', () => {
     expect(insertPlaylistItem({
       playlist: ['a', 'b'], item: 'c', mode: 'next', currentIndex: 0,

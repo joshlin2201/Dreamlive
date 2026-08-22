@@ -96,6 +96,23 @@ export function isPerformanceCycleComplete({ assignments = [], completed = [] })
   ));
 }
 
+export function resolvePerformanceCompletion({
+  assignments = [],
+  completed = [],
+  finishedIndex,
+}) {
+  const nextCompleted = completed.map((done, index) => (
+    index === finishedIndex ? true : Boolean(done)
+  ));
+  return {
+    completed: nextCompleted,
+    cycleComplete: isPerformanceCycleComplete({
+      assignments,
+      completed: nextCompleted,
+    }),
+  };
+}
+
 export function visiblePerformanceOrder({
   order = [],
   assignments = [],

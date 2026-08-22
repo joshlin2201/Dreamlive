@@ -8,8 +8,9 @@ export function playlistDisplayOrder({ playlist, currentIndex = 0, maxItems = nu
   return Number.isInteger(maxItems) ? ordered.slice(0, Math.max(0, maxItems)) : ordered;
 }
 
-export function nextPlaylistIndex({ currentIndex, length, repeat }) {
+export function nextPlaylistIndex({ currentIndex, length, repeat, loopCurrent = false }) {
   if (length < 1) return null;
+  if (loopCurrent) return Math.max(0, Math.min(currentIndex, length - 1));
   const next = currentIndex + 1;
   if (next < length) return next;
   return repeat ? 0 : null;

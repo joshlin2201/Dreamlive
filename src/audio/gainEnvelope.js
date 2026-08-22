@@ -1,5 +1,12 @@
 export const SILENCE_FLOOR = 0.0001;
-export const CLICKLESS_MUTE_SECONDS = 0.035;
+export const AUDIO_TRANSITION_SECONDS = Object.freeze({
+  pause: 0.07,
+  handoffOut: 0.18,
+  handoffIn: 0.22,
+  resume: 0.16,
+  seek: 0.06,
+});
+export const CLICKLESS_MUTE_SECONDS = AUDIO_TRANSITION_SECONDS.pause;
 
 export function scheduleGainEnvelope(gainParam, {
   currentTime,

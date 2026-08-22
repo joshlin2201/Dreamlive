@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Check, GripVertical, ListPlus, MoreVertical, Pause, Play, Shuffle, Trash2 } from 'lucide-react';
+import { Check, GripVertical, ListPlus, MoreVertical, Pause, Play, Repeat1, Shuffle, Trash2 } from 'lucide-react';
 import { playlistDisplayOrder, queueDisplacement } from '../audio/playlist';
 
-function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, playbackLocked, queueOnly = false, collapsed = false, playing, showPlayback = true, trackName, onPlay, onQueue, onToggle, onMove, onRemove, onShuffle }) {
+function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, playbackLocked, queueOnly = false, collapsed = false, playing, loopCurrent = false, showPlayback = true, trackName, onPlay, onQueue, onToggle, onMove, onRemove, onShuffle, onToggleLoop }) {
   const reduceMotion = useReducedMotion();
   const emptyDrag = () => ({
     from: null,
@@ -186,6 +186,17 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
         <div className="queue-heading-actions">
           <button type="button" onClick={onShuffle} disabled={playlist.length < 3} aria-label="Shuffle BGM queue">
             <Shuffle size={14} /> Shuffle
+          </button>
+          <button
+            type="button"
+            className={loopCurrent ? 'is-active' : ''}
+            onClick={onToggleLoop}
+            disabled={playlist.length === 0}
+            aria-label={`${loopCurrent ? 'Stop looping' : 'Loop'} selected BGM track`}
+            aria-pressed={loopCurrent}
+            title="Loop selected track"
+          >
+            <Repeat1 size={14} /> Loop
           </button>
           <strong>{playlist.length}</strong>
         </div>

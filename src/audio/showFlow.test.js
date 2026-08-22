@@ -4,6 +4,7 @@ import {
   getShowDeckState,
   getShowReadiness,
   isPerformanceCycleComplete,
+  resolvePerformanceCompletion,
   nextPlaylistIndex,
   promotePerformanceOrder,
   shouldShowRunDeck,
@@ -168,6 +169,17 @@ describe('local show flow', () => {
       assignments: [false, false, false, false],
       completed: [false, false, false, false],
     })).toBe(false);
+  });
+
+  test('preserves completed assignments at the end of DreamLIVE', () => {
+    expect(resolvePerformanceCompletion({
+      assignments: [true, true, false, false],
+      completed: [true, false, false, false],
+      finishedIndex: 1,
+    })).toEqual({
+      completed: [true, true, false, false],
+      cycleComplete: true,
+    });
   });
 
   test('hides unused lineup slots after the show starts but keeps an added draft visible', () => {
