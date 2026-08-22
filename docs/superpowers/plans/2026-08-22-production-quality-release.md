@@ -129,7 +129,7 @@
 - [x] Serve the production build and capture 390x844, 768x1024, 1024x768, and 1366x1024 screenshots.
 - [x] Walk empty, importing, populated setup, sound-check, ready, live, paused, complete, error, dropdown, and reset states; confirm no clipping, overflow, detached overlay, stale state, dead action, or console error.
 - [x] Import the known AAC-LC M4A, reload its saved IndexedDB entry, play BGM, start/pause/resume/finish a performance, stop audio, and reset.
-- [ ] Build and validate the signed generic-device archive and App Store export.
+- [x] Build and validate the signed generic-device archive and App Store export.
 
 ### Task 8: Deliver one release
 
@@ -138,9 +138,16 @@
 
 - [x] Re-check the intended branch and remote drift without resetting or discarding local work.
 - [x] Review the final diff and rerun the complete verification gate from the final tree.
-- [ ] Commit and push the release branch once.
-- [ ] Upload the signed build to App Store Connect with the existing authenticated account.
-- [ ] Poll until Apple reports the exact processing/TestFlight state and report that state without calling it live prematurely.
+- [x] Commit and push the release branch once.
+- [x] Upload the signed build to App Store Connect with the existing authenticated account.
+- [x] Poll until Apple reports the exact processing/TestFlight state and report that state without calling it live prematurely.
+
+## Release receipt
+
+- Product: DreamLive Pro 1.1.0 (6), bundle `com.joshlin.dreamlive.pro`, minimum iOS 15.0.
+- Native proof: `/tmp/DreamLive-build6.xcarchive` archived successfully; App Store export and upload completed successfully through the authenticated App Store Connect API key.
+- Apple receipt: build `40b9a695-dccb-46a0-be27-7d5e6f0317bd` uploaded at `2026-08-22T05:24:59-07:00` and reached `VALID` processing state.
+- TestFlight receipt: build 6 is assigned to the existing internal `DreamLIVE team` group (`6f427a25-1a1b-4c65-a3f6-2e1b4748c510`). This proves internal TestFlight availability; it is not an App Store production release.
 
 ## Plan self-review
 
