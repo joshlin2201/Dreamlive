@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  aggregateSpectrumBins,
-  createIdleSpectrum,
+  aggregateLogSpectrumBins,
   decaySpectrum,
   smoothSpectrum,
 } from '../audio/spectrum';
@@ -10,7 +9,7 @@ const BAR_COUNT = 72;
 
 function AudioVisualizer({ analyserRef, active = false, variant = 'compact', status = 'Paused' }) {
   const canvasRef = useRef(null);
-  const barsRef = useRef(createIdleSpectrum(BAR_COUNT));
+  const barsRef = useRef(Array(BAR_COUNT).fill(0));
   const targetRef = useRef(Array(BAR_COUNT).fill(0));
   const peaksRef = useRef(Array(BAR_COUNT).fill(0));
 
@@ -21,7 +20,7 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
     if (!context) return undefined;
 
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const idleBars = createIdleSpectrum(BAR_COUNT);
+    const silentBars = Array(BAR_COUNT).fill(0);
     let frameId = 0;
     let lastSample = 0;
     let stopped = false;
@@ -55,17 +54,33 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
       const { width, height } = canvas;
       const slot = width / BAR_COUNT;
       const baseline = height - (1.5 * density);
-      const barWidth = Math.max(1.5 * density, Math.min(4 * density, slot * 0.56));
+      const barWidth = Math.max(1.5 * density, Math.min(6 * density, slot * 0.64));
       context.clearRect(0, 0, width, height);
       context.fillStyle = gradient;
+
+      if (!active) {
+        context.globalAlpha = 0.18;
+        context.fillRect(0, baseline, width, Math.max(1, density * 0.55));
+        context.globalAlpha = 1;
+        return;
+      }
+
       for (let index = 0; index < bars.length; index += 1) {
-        const amplitude = Math.max(1.5 * density, bars[index] * height * 0.96);
+        if (bars[index] < 0.018) continue;
+        const amplitude = Math.max(1.25 * density, bars[index] * height * 0.98);
         const x = ((index + 0.5) * slot) - (barWidth / 2);
-        context.fillRect(x, Math.max(density, baseline - amplitude), barWidth, amplitude);
+        const y = Math.max(density, baseline - amplitude);
+        if (typeof context.roundRect === 'function') {
+          context.beginPath();
+          context.roundRect(x, y, barWidth, amplitude, Math.min(barWidth / 2, 1.6 * density));
+          context.fill();
+        } else {
+          context.fillRect(x, y, barWidth, amplitude);
+        }
         if (active) {
           const peakY = Math.max(density, baseline - (peaksRef.current[index] * height * 0.96));
           context.globalAlpha = 0.58;
-          context.fillRect(x, peakY, barWidth, Math.max(1, density * 0.7));
+          context.fillRect(x, peakY, barWidth, Math.max(1, density * 0.55));
           context.globalAlpha = 1;
         }
       }
@@ -88,9 +103,15 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
             frequencyData = new Uint8Array(analyser.frequencyBinCount);
           }
           analyser.getByteFrequencyData(frequencyData);
-          aggregateSpectrumBins(frequencyData, BAR_COUNT, targetRef.current, 0.72);
+          aggregateLogSpectrumBins(frequencyData, BAR_COUNT, targetRef.current, 0.72);
+          const framePeak = Math.max(...targetRef.current);
+          const adaptiveGain = framePeak > 0.02
+            ? Math.min(3.2, Math.max(1, 0.82 / framePeak))
+            : 1;
           for (let index = 0; index < targetRef.current.length; index += 1) {
-            targetRef.current[index] = Math.min(1, Math.pow(targetRef.current[index], 0.38) * 1.3);
+            const gatedLevel = Math.max(0, (targetRef.current[index] - 0.025) * adaptiveGain);
+            const spectralLift = 1.22 + ((index / (targetRef.current.length - 1)) * 0.34);
+            targetRef.current[index] = Math.min(1, Math.pow(gatedLevel, 0.68) * spectralLift);
             peaksRef.current[index] = Math.max(
               targetRef.current[index],
               peaksRef.current[index] - (reducedMotion ? 0.08 : 0.025)
@@ -103,9 +124,9 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
             barsRef.current
           );
         } else {
-          decaySpectrum(barsRef.current, idleBars, reducedMotion ? 0.55 : 0.2, barsRef.current);
-          decaySpectrum(peaksRef.current, idleBars, reducedMotion ? 0.55 : 0.2, peaksRef.current);
-          settled = barsRef.current.every((value, index) => Math.abs(value - idleBars[index]) < 0.002);
+          decaySpectrum(barsRef.current, silentBars, reducedMotion ? 0.55 : 0.2, barsRef.current);
+          decaySpectrum(peaksRef.current, silentBars, reducedMotion ? 0.55 : 0.2, peaksRef.current);
+          settled = barsRef.current.every(value => value < 0.002);
         }
         draw(barsRef.current);
         lastSample = timestamp;

@@ -1,4 +1,10 @@
-import { aggregateSpectrumBins, createIdleSpectrum, decaySpectrum, smoothSpectrum } from './spectrum';
+import {
+  aggregateLogSpectrumBins,
+  aggregateSpectrumBins,
+  createIdleSpectrum,
+  decaySpectrum,
+  smoothSpectrum,
+} from './spectrum';
 
 describe('audio spectrum model', () => {
   test('aggregates frequency data into normalized display bars', () => {
@@ -23,6 +29,19 @@ describe('audio spectrum model', () => {
   test('can focus the display on the musically useful frequency range', () => {
     const data = Uint8Array.from([255, 255, 128, 128, 0, 0, 0, 0]);
     expect(aggregateSpectrumBins(data, 2, null, 0.5)).toEqual([1, 128 / 255]);
+  });
+
+  test('maps a wide spectrum into distinct logarithmic frequency bands', () => {
+    const data = Uint8Array.from({ length: 256 }, (_, index) => (
+      index < 16 ? 230 : (index < 64 ? 120 : 24)
+    ));
+    const output = Array(24).fill(0);
+    const bars = aggregateLogSpectrumBins(data, 24, output, 0.8);
+
+    expect(bars).toBe(output);
+    expect(bars).toHaveLength(24);
+    expect(Math.max(...bars.slice(0, 6))).toBeGreaterThan(Math.max(...bars.slice(-6)));
+    expect(new Set(bars.map(value => value.toFixed(2))).size).toBeGreaterThan(2);
   });
 
   test('creates a quiet but visible idle baseline', () => {

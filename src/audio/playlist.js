@@ -1,5 +1,12 @@
 const unchanged = (playlist, currentIndex) => ({ playlist, currentIndex, changed: false });
 
+export function playlistDisplayOrder({ playlist, currentIndex = 0 }) {
+  if (playlist.length === 0) return [];
+  const safeIndex = Math.max(0, Math.min(currentIndex, playlist.length - 1));
+  const entries = playlist.map((path, sourceIndex) => ({ path, sourceIndex }));
+  return [...entries.slice(safeIndex), ...entries.slice(0, safeIndex)];
+}
+
 export function nextPlaylistIndex({ currentIndex, length, repeat }) {
   if (length < 1) return null;
   const next = currentIndex + 1;

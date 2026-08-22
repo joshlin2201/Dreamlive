@@ -7,8 +7,10 @@ import {
   FolderOpen,
   Pause,
   Play,
+  Plus,
   RotateCcw,
   Search,
+  Square,
   Trash2,
   Volume2,
   X,
@@ -24,7 +26,6 @@ import {
 import {
   insertPlaylistItem,
   movePlaylistItem,
-  previousPlaylistAction,
   removePlaylistItem,
   shufflePlaylist,
 } from './audio/playlist';
@@ -40,7 +41,6 @@ import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import AudioVisualizer from './components/AudioVisualizer';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
 import BgmQueue from './components/BgmQueue';
-import BgmTransport from './components/BgmTransport';
 import './App.css';
 
 // Searchable Select Component
@@ -140,6 +140,11 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
   };
 
   const handleSearchKeyDown = event => {
+    if (event.key === 'Tab') {
+      setIsOpen(false);
+      setSearchTerm('');
+      return;
+    }
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
       event.preventDefault();
       setActiveIndex(index => nextOptionIndex(index, event.key, filteredOptions.length));
@@ -232,7 +237,6 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
-          title={selectedOption ? selectedOption.label : placeholder}
         >
           <span className="select-value">
             {selectedOption ? selectedOption.label : placeholder}
@@ -276,6 +280,8 @@ function SakuraSoundscape({ active }) {
 // No audio ships with the app — staff import their own licensed tracks
 // via the Import Audio button (persisted in IndexedDB).
 const DEFAULT_AUDIO_FILES = [];
+const DEFAULT_PERFORMANCE_COUNT = 4;
+const performanceArray = (value, count = DEFAULT_PERFORMANCE_COUNT) => Array.from({ length: count }, () => value);
 const displayTrackName = (name) => name.replace(/\.(mp3|m4a|aac|wav|ogg|flac)$/i, '');
 
 function App() {
@@ -291,21 +297,21 @@ function App() {
   const [repeatPlaylist, setRepeatPlaylist] = useState(true);
   const [bgPlaying, setBgPlaying] = useState(false);
   const [bgVolume, setBgVolume] = useState(0.5);
-  const [bgProgress, setBgProgress] = useState(0);
-  const [bgDuration, setBgDuration] = useState(0);
+  const [pendingBgTrack, setPendingBgTrack] = useState('');
+  const pendingBgTrackRef = useRef('');
   const [libraryOpen, setLibraryOpen] = useState(false);
   const bgAudioRef = useRef(null);
   const bgTrack = bgPlaylist[bgIndex] || '';
 
   // Performance tracks state
-  const [perfTracks, setPerfTracks] = useState(['', '', '', '']);
-  const [perfPlaying, setPerfPlaying] = useState([false, false, false, false]);
-  const [perfVolumes, setPerfVolumes] = useState([0.8, 0.8, 0.8, 0.8]);
-  const [perfProgress, setPerfProgress] = useState([0, 0, 0, 0]);
-  const [perfDurations, setPerfDurations] = useState([0, 0, 0, 0]);
+  const [perfTracks, setPerfTracks] = useState(() => performanceArray(''));
+  const [perfPlaying, setPerfPlaying] = useState(() => performanceArray(false));
+  const [perfVolumes, setPerfVolumes] = useState(() => performanceArray(0.8));
+  const [perfProgress, setPerfProgress] = useState(() => performanceArray(0));
+  const [perfDurations, setPerfDurations] = useState(() => performanceArray(0));
   const [currentPerformance, setCurrentPerformance] = useState(null);
-  const [performanceStatus, setPerformanceStatus] = useState([false, false, false, false]);
-  const perfAudioRefs = useRef([null, null, null, null]);
+  const [performanceStatus, setPerformanceStatus] = useState(() => performanceArray(false));
+  const perfAudioRefs = useRef(performanceArray(null));
   const [showPhase, setShowPhase] = useState(SHOW_PHASE.SETUP);
   const [showError, setShowError] = useState('');
 
@@ -330,8 +336,8 @@ function App() {
   const analyserNodeRef = useRef(null);
 
   // Web Audio for Performance Tracks
-  const perfGainNodeRefs = useRef([null, null, null, null]);
-  const perfSourceNodeRefs = useRef([null, null, null, null]);
+  const perfGainNodeRefs = useRef(performanceArray(null));
+  const perfSourceNodeRefs = useRef(performanceArray(null));
   const [managedSources, setManagedSources] = useState({});
   const managedSourceUrlsRef = useRef(new Map());
   const sourceLoadGenerationRef = useRef(0);
@@ -340,7 +346,7 @@ function App() {
   const fadeTimeoutRef = useRef(null);
   const fadeResolverRef = useRef(null);
   const transitionLockRef = useRef(false);
-  const seekTimeoutRefs = useRef({ bg: null, perf: [null, null, null, null] });
+  const seekTimeoutRefs = useRef({ bg: null, perf: performanceArray(null) });
   const settingsHydratedRef = useRef(false);
   const playbackStateRef = useRef({ bgPlaying: false, currentPerformance: null, perfPlaying: [] });
   const [notice, setNotice] = useState(null);
@@ -447,6 +453,17 @@ function App() {
     }
   };
 
+  const ensurePerformanceGain = (index) => {
+    if (perfGainNodeRefs.current[index]) return perfGainNodeRefs.current[index];
+    const ctx = audioContextRef.current;
+    const compressor = masterCompressorRef.current;
+    if (!ctx || !compressor) return null;
+    const gain = ctx.createGain();
+    gain.connect(compressor);
+    perfGainNodeRefs.current[index] = gain;
+    return gain;
+  };
+
   const pauseClicklessly = async (audio, gainNode) => {
     if (!audio || audio.paused) return;
     const context = audioContextRef.current;
@@ -523,7 +540,7 @@ function App() {
       bgGainNodeRef.current = bgGain;
 
       // Perf Setup
-      perfGainNodeRefs.current = [0, 1, 2, 3].map(() => {
+      perfGainNodeRefs.current = perfTracks.map(() => {
         const g = ctx.createGain();
         g.connect(compressor);
         return g;
@@ -716,15 +733,24 @@ function App() {
         const saved = JSON.parse(raw);
         const pathForKey = key => files.find(file => (file.id || file.path) === key)?.path || '';
         const restoredPlaylist = (saved.playlistIds || []).map(pathForKey).filter(Boolean);
-        const restoredPerformances = [0, 1, 2, 3].map(index => pathForKey(saved.performanceIds?.[index]));
+        const performanceCount = Math.max(DEFAULT_PERFORMANCE_COUNT, saved.performanceIds?.length || 0);
+        const restoredPerformances = Array.from({ length: performanceCount }, (_, index) => pathForKey(saved.performanceIds?.[index]));
         setBgPlaylist(restoredPlaylist);
         setBgIndex(Math.min(saved.bgIndex || 0, Math.max(restoredPlaylist.length - 1, 0)));
         setRepeatPlaylist(saved.repeatPlaylist !== false);
         setPerfTracks(restoredPerformances);
+        setPerfPlaying(performanceArray(false, performanceCount));
+        setPerfProgress(performanceArray(0, performanceCount));
+        setPerfDurations(performanceArray(0, performanceCount));
+        setPerformanceStatus(performanceArray(false, performanceCount));
+        perfAudioRefs.current = performanceArray(null, performanceCount);
+        perfGainNodeRefs.current = performanceArray(null, performanceCount);
+        perfSourceNodeRefs.current = performanceArray(null, performanceCount);
+        seekTimeoutRefs.current.perf = performanceArray(null, performanceCount);
         if (Number.isFinite(saved.bgVolume)) setBgVolume(saved.bgVolume);
-        if (Array.isArray(saved.perfVolumes) && saved.perfVolumes.length === 4) {
-          setPerfVolumes(saved.perfVolumes);
-        }
+        setPerfVolumes(Array.from({ length: performanceCount }, (_, index) => (
+          Number.isFinite(saved.perfVolumes?.[index]) ? saved.perfVolumes[index] : 0.8
+        )));
       } catch (error) {
         console.warn('Saved show setup could not be restored:', error);
       } finally {
@@ -1074,8 +1100,6 @@ function App() {
     if (result.playlist.length === 0) {
       if (bgAudioRef.current) bgAudioRef.current.pause();
       setBgPlaying(false);
-      setBgProgress(0);
-      setBgDuration(0);
     }
   };
 
@@ -1106,7 +1130,7 @@ function App() {
 
     const ready = await ensureAudioReady();
     if (!ready) {
-      setShowError('DreamLIVE audio is paused by the device. Tap Stop audio, then play again.');
+      setShowError('DreamLIVE audio is paused by the device. Tap Play again.');
       setShowPhase(SHOW_PHASE.ERROR);
       return false;
     }
@@ -1180,29 +1204,13 @@ function App() {
     }
   };
 
-  const previousBackground = async () => {
-    if (currentPerformance !== null || bgPlaylist.length === 0 || !bgAudioRef.current) return;
-    const action = previousPlaylistAction({
-      currentIndex: bgIndex,
-      length: bgPlaylist.length,
-      currentTime: bgAudioRef.current.currentTime,
-    });
-    if (action.index === null) return;
-    if (action.restart || action.index === bgIndex) {
-      bgAudioRef.current.currentTime = 0;
-      setBgProgress(0);
-      return;
-    }
-    await pauseClicklessly(bgAudioRef.current, bgGainNodeRef.current);
-    setBgIndex(action.index);
-  };
-
   const playBackgroundFrom = async (index) => {
     if (currentPerformance !== null || isFading || !bgPlaylist[index]) return;
+    pendingBgTrackRef.current = '';
+    setPendingBgTrack('');
     if (index === bgIndex) {
       if (bgAudioRef.current) {
         bgAudioRef.current.currentTime = 0;
-        setBgProgress(0);
       }
       await playBackgroundAudio();
       return;
@@ -1212,22 +1220,15 @@ function App() {
     setBgIndex(index);
   };
 
-  const handleBgSeek = value => {
-    const time = Number.parseFloat(value);
-    if (!bgAudioRef.current || !Number.isFinite(time)) return;
-    seekClicklessly({
-      audio: bgAudioRef.current,
-      gainNode: bgGainNodeRef.current,
-      value: time,
-      restoreTo: bgVolume,
-      timeoutKey: 'bg',
-    });
-    setBgProgress(time);
+  const queueBackgroundForReturn = index => {
+    const track = bgPlaylist[index];
+    if (!track || currentPerformance === null) return;
+    pendingBgTrackRef.current = track;
+    setPendingBgTrack(track);
+    showNotice(`${trackName(track)} will play after this performance.`);
   };
 
   useEffect(() => {
-    setBgProgress(0);
-    setBgDuration(0);
     if (!bgPlaying || currentPerformance !== null || !bgTrack || !bgTrackSource) return;
     if (bgAudioRef.current) {
       bgAudioRef.current.load();
@@ -1310,9 +1311,20 @@ function App() {
   const fadeInBackground = async () => {
     if (!bgAudioRef.current || !bgTrack) return;
     setIsFading(true);
+    const pendingIndex = bgPlaylist.indexOf(pendingBgTrackRef.current);
+    if (pendingIndex >= 0 && pendingIndex !== bgIndex) {
+      pendingBgTrackRef.current = '';
+      setPendingBgTrack('');
+      setBgPlaying(true);
+      setBgIndex(pendingIndex);
+      setIsFading(false);
+      return;
+    }
+    pendingBgTrackRef.current = '';
+    setPendingBgTrack('');
     const audio = bgAudioRef.current;
     const ready = await ensureAudioReady();
-    if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Stop audio, then start BGM again.');
+    if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Play in BGM again.');
 
     if (bgGainNodeRef.current && audioContextRef.current) {
       const g = bgGainNodeRef.current.gain;
@@ -1342,20 +1354,20 @@ function App() {
     if (audioContextRef.current && !perfSourceNodeRefs.current[index]) {
       try {
         const source = audioContextRef.current.createMediaElementSource(audio);
-        source.connect(perfGainNodeRefs.current[index]);
+        source.connect(ensurePerformanceGain(index));
         perfSourceNodeRefs.current[index] = source;
       } catch (error) {
         console.warn('Performance audio connection failed:', error);
       }
     }
 
-    const perfGain = perfGainNodeRefs.current[index];
+    const perfGain = ensurePerformanceGain(index);
     const target = perfVolumes[index];
     audio.currentTime = 0;
     audio.volume = perfGain ? 1 : target;
     muteGain(perfGain);
     const ready = await ensureAudioReady();
-    if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Stop audio, then start BGM again.');
+    if (!ready) throw new Error('DreamLIVE audio couldn’t start. Tap Start again.');
     const ok = await playSafely(audio, `Performance ${index + 1}`);
     if (!ok) throw new Error(`Performance ${index + 1} couldn’t start. Check the track, then try again.`);
 
@@ -1412,7 +1424,7 @@ function App() {
     }
 
     // A resumed context can repeat the warm-up, so mute then fade here too.
-    const perfGain = perfGainNodeRefs.current[index];
+    const perfGain = ensurePerformanceGain(index);
     await ensureAudioReady();
     muteGain(perfGain);
     const ok = await playSafely(audio, `Performance ${index + 1}`);
@@ -1446,6 +1458,20 @@ function App() {
       setIsFading(false);
       setShowError(error.message);
       setShowPhase(SHOW_PHASE.ERROR);
+    }
+  };
+
+  const endPerformance = async (index) => {
+    if (currentPerformance !== index || transitionLockRef.current) return;
+    transitionLockRef.current = true;
+    try {
+      await pauseClicklessly(perfAudioRefs.current[index], perfGainNodeRefs.current[index]);
+      setPerfProgress(previous => previous.map((progress, trackIndex) => (
+        trackIndex === index ? (perfDurations[index] || progress) : progress
+      )));
+      await handlePerformanceEnd(index);
+    } finally {
+      transitionLockRef.current = false;
     }
   };
 
@@ -1485,15 +1511,64 @@ function App() {
     perfAudioRefs.current.forEach(audio => {
       if (audio) audio.currentTime = 0;
     });
-    setPerfTracks(['', '', '', '']);
-    setPerfPlaying([false, false, false, false]);
-    setPerfProgress([0, 0, 0, 0]);
-    setPerfDurations([0, 0, 0, 0]);
-    setPerformanceStatus([false, false, false, false]);
+    setPerfTracks(performanceArray(''));
+    setPerfPlaying(performanceArray(false));
+    setPerfVolumes(performanceArray(0.8));
+    setPerfProgress(performanceArray(0));
+    setPerfDurations(performanceArray(0));
+    setPerformanceStatus(performanceArray(false));
+    perfAudioRefs.current = performanceArray(null);
+    perfGainNodeRefs.current = performanceArray(null);
+    perfSourceNodeRefs.current = performanceArray(null);
+    seekTimeoutRefs.current.perf = performanceArray(null);
     setCurrentPerformance(null);
     setShowPhase(SHOW_PHASE.SETUP);
     setResetConfirmOpen(false);
     showNotice('Performances cleared. BGM queue and imported tracks were kept.');
+  };
+
+  const addPerformance = () => {
+    setPerfTracks(previous => [...previous, '']);
+    setPerfPlaying(previous => [...previous, false]);
+    setPerfVolumes(previous => [...previous, 0.8]);
+    setPerfProgress(previous => [...previous, 0]);
+    setPerfDurations(previous => [...previous, 0]);
+    setPerformanceStatus(previous => [...previous, false]);
+    perfAudioRefs.current.push(null);
+    perfGainNodeRefs.current.push(null);
+    perfSourceNodeRefs.current.push(null);
+    seekTimeoutRefs.current.perf.push(null);
+    showNotice('Performance added.');
+  };
+
+  const restartDreamLive = async () => {
+    if (transitionLockRef.current) return;
+    transitionLockRef.current = true;
+    const shouldRestoreBackground = currentPerformance !== null && Boolean(bgTrack);
+    try {
+      await Promise.all(perfAudioRefs.current.map((audio, index) => (
+        pauseClicklessly(audio, perfGainNodeRefs.current[index])
+      )));
+      perfAudioRefs.current.forEach(audio => {
+        if (audio) audio.currentTime = 0;
+      });
+      pendingBgTrackRef.current = '';
+      setPendingBgTrack('');
+      setPerfPlaying(previous => previous.map(() => false));
+      setPerfProgress(previous => previous.map(() => 0));
+      setPerformanceStatus(previous => previous.map(() => false));
+      setCurrentPerformance(null);
+      setIsFading(false);
+      if (shouldRestoreBackground) await fadeInBackground();
+      setShowPhase(assignedCount > 0 ? SHOW_PHASE.READY : SHOW_PHASE.SETUP);
+      showNotice('DreamLIVE restarted. Every performance is ready from the beginning.');
+    } catch (error) {
+      setIsFading(false);
+      setShowError(error.message);
+      setShowPhase(SHOW_PHASE.ERROR);
+    } finally {
+      transitionLockRef.current = false;
+    }
   };
 
   const confirmLibraryRemoval = async () => {
@@ -1528,8 +1603,6 @@ function App() {
         bgAudioRef.current?.pause();
         if (bgAudioRef.current) bgAudioRef.current.currentTime = 0;
         setBgPlaying(false);
-        setBgProgress(0);
-        setBgDuration(0);
       }
       setPerfTracks(reconciled.performances);
       setPerfProgress(previous => previous.map((value, index) => (removed.has(perfTracks[index]) ? 0 : value)));
@@ -1552,6 +1625,9 @@ function App() {
   };
 
   const assignedCount = perfTracks.filter(Boolean).length;
+  const hasPerformanceHistory = currentPerformance !== null
+    || performanceStatus.some(Boolean)
+    || perfProgress.some(progress => progress > 0.05);
   const readiness = getShowReadiness({ assignedPerformances: assignedCount });
   const deckState = getShowDeckState({
     ready: readiness.ready,
@@ -1562,12 +1638,6 @@ function App() {
   const runDeck = deckState.mode !== 'prep';
   const focusPerformanceIndex = deckState.activePerformanceIndex ?? deckState.nextPerformanceIndex;
 
-  const nextBgIndex = nextPlaylistIndex({
-    currentIndex: bgIndex,
-    length: bgPlaylist.length,
-    repeat: repeatPlaylist,
-  });
-  const nextBgTrack = nextBgIndex === null ? '' : bgPlaylist[nextBgIndex];
   const libraryRemovalPaths = libraryRemoval?.paths || [];
   const libraryRemovalSet = new Set(libraryRemovalPaths);
   const libraryQueueReferences = bgPlaylist.filter(path => libraryRemovalSet.has(path)).length;
@@ -1720,10 +1790,30 @@ function App() {
         </div>
       ) : (
         <>
-          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''}`}>
-            <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''}`}>
+          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''} ${currentPerformance !== null && (perfPlaying[currentPerformance] || isFading) ? 'is-visualizing' : ''}`}>
+            <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''} ${currentPerformance !== null || isFading ? 'is-held' : ''}`}>
               <div className="section-header">
-                <h2 className="section-title">Room music <span className="japanese-label">ルームBGM</span></h2>
+                <h2 className="section-title">BGM <span className="japanese-label">店内音楽</span></h2>
+                <div className="bgm-header-actions">
+                  <details className="bgm-level-menu bgm-header-level">
+                    <summary aria-label={`BGM level ${Math.round(bgVolume * 100)} percent`}>
+                      <Volume2 size={15} aria-hidden="true" />
+                      <span>{Math.round(bgVolume * 100)}%</span>
+                    </summary>
+                    <label className="bgm-level-control">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={bgVolume}
+                        onChange={handleBgVolumeChange}
+                        aria-label="BGM volume"
+                      />
+                      <strong>{Math.round(bgVolume * 100)}%</strong>
+                    </label>
+                  </details>
+                </div>
               </div>
               {audioFiles.length === 0 && (
                 <div className="library-inline-state">
@@ -1739,33 +1829,28 @@ function App() {
               )}
               <div className="bg-music-container">
                 {runDeck && (
-                  <BgmTransport
-                    key="run"
-                    currentTrack={bgTrack ? trackName(bgTrack) : ''}
-                    nextTrack={nextBgTrack ? trackName(nextBgTrack) : ''}
-                    elapsed={bgProgress}
-                    duration={bgDuration}
-                    formatTime={formatTime}
-                    playing={bgPlaying}
-                    playbackLocked={currentPerformance !== null || isFading || !bgTrackSource}
-                    onPrevious={previousBackground}
-                    onToggle={toggleBackgroundMusic}
-                    onNext={advanceBackground}
-                    onSeek={handleBgSeek}
-                    volume={bgVolume}
-                    onVolumeChange={handleBgVolumeChange}
-                    showProgress={currentPerformance === null}
-                  />
+                  <div className={`bgm-visualizer-slot ${bgPlaying && currentPerformance === null ? 'is-active' : ''}`}>
+                    <AudioVisualizer
+                      analyserRef={analyserNodeRef}
+                      active={bgPlaying && currentPerformance === null}
+                      variant="compact"
+                      status="BGM"
+                    />
+                  </div>
                 )}
-
                 <BgmQueue
                   playlist={bgPlaylist}
                   currentIndex={bgIndex}
-                  heldIndex={currentPerformance !== null ? bgIndex : null}
-                  playbackLocked={currentPerformance !== null || isFading}
+                  heldIndex={bgPlaying || currentPerformance !== null ? bgIndex : null}
+                  pendingIndex={pendingBgTrack ? bgPlaylist.indexOf(pendingBgTrack) : null}
+                  playbackLocked={isFading && currentPerformance === null}
+                  queueOnly={currentPerformance !== null}
+                  playing={bgPlaying}
                   showPlayback={runDeck}
                   trackName={trackName}
                   onPlay={playBackgroundFrom}
+                  onQueue={queueBackgroundForReturn}
+                  onToggle={toggleBackgroundMusic}
                   onMove={moveBackgroundTrack}
                   onRemove={removeBackgroundTrack}
                   onShuffle={shuffleBackgroundTracks}
@@ -1775,11 +1860,6 @@ function App() {
                   ref={bgAudioRef}
                   src={bgTrackSource || undefined}
                   preload="auto"
-                  onTimeUpdate={event => setBgProgress(event.currentTarget.currentTime)}
-                  onLoadedMetadata={event => {
-                    setBgDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
-                    setBgProgress(event.currentTarget.currentTime || 0);
-                  }}
                   onEnded={advanceBackground}
                   onError={() => {
                     if (!bgTrack) return;
@@ -1799,15 +1879,15 @@ function App() {
                 <div className="setup-stage-actions">
                   <div
                     className="performance-summary"
-                    aria-label={`${assignedCount} of 4 performances assigned`}
+                    aria-label={`${assignedCount} of ${perfTracks.length} performances assigned`}
                   >
-                    <strong>{assignedCount}/4</strong>
+                    <strong>{assignedCount}/{perfTracks.length}</strong>
                     <span>ready</span>
                   </div>
                 </div>
               </div>
             {runDeck && (
-              <div className={`run-focus-panel mode-${deckState.mode} ${deckState.activePerformanceIndex === null && deckState.nextPerformanceIndex === null ? 'is-complete' : ''}`}>
+              <div className={`run-focus-panel mode-${deckState.mode} ${deckState.activePerformanceIndex !== null ? 'has-active-performance' : ''} ${deckState.activePerformanceIndex === null && deckState.nextPerformanceIndex === null ? 'is-complete' : ''}`}>
                 <SakuraDrift />
                 {deckState.mode === 'live' && focusPerformanceIndex !== null ? (
                   <>
@@ -1839,9 +1919,21 @@ function App() {
                         className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : ''}`}
                         onClick={() => togglePerfPause(focusPerformanceIndex)}
                         disabled={isFading}
+                        aria-label={perfPlaying[focusPerformanceIndex] ? 'Pause performance' : 'Resume performance'}
+                        title={perfPlaying[focusPerformanceIndex] ? 'Pause' : 'Resume'}
                       >
                         {perfPlaying[focusPerformanceIndex] ? <Pause size={18} /> : <Play size={18} />}
-                        <span>{perfPlaying[focusPerformanceIndex] ? 'Pause' : 'Resume'}</span>
+                        {!perfPlaying[focusPerformanceIndex] && <span>Resume</span>}
+                      </button>
+                      <button
+                        type="button"
+                        className="control-button run-end-button"
+                        onClick={() => endPerformance(focusPerformanceIndex)}
+                        disabled={isFading}
+                        aria-label="End performance"
+                      >
+                        <Square size={14} fill="currentColor" />
+                        <span>End</span>
                       </button>
                       <details className="run-level-menu">
                         <summary aria-label={`Performance level ${Math.round(perfVolumes[focusPerformanceIndex] * 100)} percent`}>
@@ -1936,14 +2028,6 @@ function App() {
                       />
                       <span>{formatTime(perfDurations[deckState.nextPerformanceIndex])}</span>
                     </div>
-                    <div className="run-signal-strip">
-                      <AudioVisualizer
-                        analyserRef={analyserNodeRef}
-                        active={false}
-                        variant="focus"
-                        status="Ready"
-                      />
-                    </div>
                   </>
                 ) : (
                   <div className="run-complete-state">
@@ -1959,29 +2043,43 @@ function App() {
             )}
             {runDeck && (
               <div className="run-setup-header">
-                <span>Performance queue <span className="japanese-label">パフォーマンスキュー</span></span>
-                <button
-                  type="button"
-                  className="control-button clear-performances-button"
-                  onClick={openResetConfirmation}
-                  disabled={currentPerformance !== null || isFading}
-                  title={currentPerformance !== null ? 'Finish the current performance before clearing assignments' : 'Clear performance assignments'}
-                >
-                  <Trash2 size={15} />
-                  <span>Clear performances</span>
-                </button>
+                <span>Lineup <span className="japanese-label">ラインナップ</span></span>
+                <div className="lineup-header-actions">
+                  {hasPerformanceHistory && (
+                    <button
+                      type="button"
+                      className="control-button restart-dreamlive-button"
+                      onClick={restartDreamLive}
+                      disabled={isFading}
+                      title="Reset every performance to the beginning"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Restart DreamLIVE</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="control-button clear-performances-button"
+                    onClick={openResetConfirmation}
+                    disabled={currentPerformance !== null || isFading}
+                    title={currentPerformance !== null ? 'Finish the current performance before clearing assignments' : 'Clear performance assignments'}
+                  >
+                    <Trash2 size={14} />
+                    <span>Clear</span>
+                  </button>
+                </div>
               </div>
             )}
             <div className="performances-grid">
-              {[0, 1, 2, 3].map((index) => (
+              {perfTracks.map((_, index) => (
                 <div
                   key={index}
                   className={`performance-card ${currentPerformance === index ? 'active' : ''
-                    } ${performanceStatus[index] ? 'completed' : ''}`}
+                    } ${performanceStatus[index] ? 'completed' : ''} ${perfTracks[index] ? '' : 'is-empty'} ${currentPerformance === null && perfTracks[index] ? 'has-row-action' : ''}`}
                   aria-label={`Performance ${index + 1}`}
                 >
                   <div className="perf-header">
-                    <div className="perf-number">#{index + 1}</div>
+                    <div className="perf-number">{String(index + 1).padStart(2, '0')}</div>
                     {currentPerformance === index && perfPlaying[index] ? (
                       <span className="perf-status-badge playing" aria-label="Live" title="Live" />
                     ) : currentPerformance === index && !perfPlaying[index] ? (
@@ -2002,6 +2100,15 @@ function App() {
                         setPerfTracks(previous => previous.map((track, trackIndex) => (
                           trackIndex === index ? value : track
                         )));
+                        setPerformanceStatus(previous => previous.map((done, trackIndex) => (
+                          trackIndex === index ? false : done
+                        )));
+                        setPerfProgress(previous => previous.map((progress, trackIndex) => (
+                          trackIndex === index ? 0 : progress
+                        )));
+                        setPerfDurations(previous => previous.map((duration, trackIndex) => (
+                          trackIndex === index ? 0 : duration
+                        )));
                       }}
                       options={audioFiles.map(file => ({
                         value: file.path,
@@ -2012,6 +2119,24 @@ function App() {
                     />
                   </div>
 
+                  <span className="perf-duration" aria-hidden={!perfTracks[index]}>
+                    {perfTracks[index] ? formatTime(perfDurations[index]) : ''}
+                  </span>
+
+                  {currentPerformance === null && perfTracks[index] && (
+                    <button
+                      type="button"
+                      className="perf-row-start"
+                      onClick={() => startPerformance(index)}
+                      disabled={isFading || !trackSource(perfTracks[index])}
+                      aria-label={`${performanceStatus[index] ? 'Replay' : 'Start'} performance ${index + 1}`}
+                      title={`${performanceStatus[index] ? 'Replay' : 'Start'} performance ${index + 1}`}
+                    >
+                      <Play size={13} fill="currentColor" />
+                      <span>{performanceStatus[index] ? 'Replay' : 'Start'}</span>
+                    </button>
+                  )}
+
                   <audio
                     ref={el => perfAudioRefs.current[index] = el}
                     src={trackSource(perfTracks[index]) || undefined}
@@ -2021,6 +2146,10 @@ function App() {
                   />
                 </div>
               ))}
+              <button type="button" className="add-performance-button" onClick={addPerformance}>
+                <Plus size={13} />
+                <span>Add performance</span>
+              </button>
             </div>
             </section>
           </main>

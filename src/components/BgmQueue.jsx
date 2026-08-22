@@ -1,69 +1,176 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { GripVertical, Play, Shuffle, Trash2 } from 'lucide-react';
-import { queueDisplacement } from '../audio/playlist';
+import { Check, GripVertical, ListPlus, MoreHorizontal, Pause, Play, Shuffle, Trash2 } from 'lucide-react';
+import { playlistDisplayOrder, queueDisplacement } from '../audio/playlist';
 
-function BgmQueue({ playlist, currentIndex, heldIndex, playbackLocked, showPlayback = true, trackName, onPlay, onMove, onRemove, onShuffle }) {
-  const dragRef = useRef({ from: null, to: null, pointerId: null });
+function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, playbackLocked, queueOnly = false, playing, showPlayback = true, trackName, onPlay, onQueue, onToggle, onMove, onRemove, onShuffle }) {
+  const emptyDrag = () => ({
+    from: null,
+    to: null,
+    pointerId: null,
+    started: false,
+    fromPosition: null,
+    toPosition: null,
+    armed: false,
+    activationTimer: null,
+    handle: null,
+    originX: 0,
+    originY: 0,
+    bounds: null,
+  });
+  const dragRef = useRef(emptyDrag());
+  const queueRef = useRef(null);
   const [draggingIndex, setDraggingIndex] = useState(null);
-  const [dropIndex, setDropIndex] = useState(null);
+  const [draggingPosition, setDraggingPosition] = useState(null);
+  const [dropPosition, setDropPosition] = useState(null);
   const [dragGhost, setDragGhost] = useState(null);
+  const [rowMenu, setRowMenu] = useState(null);
+  const orderedPlaylist = playlistDisplayOrder({ playlist, currentIndex });
 
-  const startDrag = (event, index) => {
+  const clearDragTimer = drag => {
+    if (drag.activationTimer !== null) window.clearTimeout(drag.activationTimer);
+  };
+
+  useEffect(() => () => clearDragTimer(dragRef.current), []);
+
+  useEffect(() => {
+    queueRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    setRowMenu(null);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (!rowMenu) return undefined;
+    const dismiss = event => {
+      if (event.target.closest?.('[data-queue-menu], [data-queue-menu-trigger]')) return;
+      setRowMenu(null);
+    };
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') setRowMenu(null);
+    };
+    const close = () => setRowMenu(null);
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', close);
+    queueRef.current?.addEventListener('scroll', close, { passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', close);
+      queueRef.current?.removeEventListener('scroll', close);
+    };
+  }, [rowMenu]);
+
+  const activateTrack = index => (
+    queueOnly ? onQueue(index) : (index === currentIndex ? onToggle() : onPlay(index))
+  );
+
+  const openRowMenu = (event, index) => {
+    if (rowMenu?.index === index) {
+      setRowMenu(null);
+      return;
+    }
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const width = 176;
+    const height = showPlayback ? 94 : 50;
+    const left = Math.max(8, Math.min(window.innerWidth - width - 8, bounds.right - width));
+    const top = window.innerHeight - bounds.bottom > height + 8
+      ? bounds.bottom + 4
+      : Math.max(8, bounds.top - height - 4);
+    setRowMenu({ index, left, top, width });
+  };
+
+  const startDrag = (event, index, position) => {
     if (index === heldIndex) return;
-    dragRef.current = { from: index, to: index, pointerId: event.pointerId };
-    setDraggingIndex(index);
-    setDropIndex(index);
     const row = event.currentTarget.closest('[data-queue-index]');
     const bounds = row?.getBoundingClientRect();
-    if (bounds) {
-      setDragGhost({
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        pointerOffset: event.clientY - bounds.top,
-        path: playlist[index],
-      });
+    dragRef.current = {
+      from: index,
+      to: index,
+      fromPosition: position,
+      toPosition: position,
+      pointerId: event.pointerId,
+      started: false,
+      armed: event.pointerType !== 'touch',
+      activationTimer: null,
+      handle: event.currentTarget,
+      originX: event.clientX,
+      originY: event.clientY,
+      bounds,
+    };
+    if (event.pointerType === 'touch') {
+      dragRef.current.activationTimer = window.setTimeout(() => {
+        if (dragRef.current.from === index) dragRef.current.armed = true;
+      }, 180);
     }
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
   };
 
   const moveDrag = event => {
-    if (dragRef.current.from === null) return;
+    const drag = dragRef.current;
+    if (drag.from === null) return;
+    if (!drag.started) {
+      if (!drag.armed) return;
+      const distance = Math.hypot(event.clientX - drag.originX, event.clientY - drag.originY);
+      if (distance < 7 || !drag.bounds) return;
+      clearDragTimer(drag);
+      drag.started = true;
+      drag.handle?.setPointerCapture?.(drag.pointerId);
+      setDraggingIndex(drag.from);
+      setDraggingPosition(drag.fromPosition);
+      setDropPosition(drag.fromPosition);
+      setDragGhost({
+        left: drag.bounds.left,
+        top: drag.bounds.top,
+        width: drag.bounds.width,
+        pointerOffset: drag.originY - drag.bounds.top,
+        path: playlist[drag.from],
+      });
+    }
+    event.preventDefault();
     setDragGhost(previous => previous ? {
       ...previous,
       top: event.clientY - previous.pointerOffset,
     } : previous);
     const row = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-queue-index]');
     const index = Number.parseInt(row?.dataset.queueIndex, 10);
+    const position = Number.parseInt(row?.dataset.queuePosition, 10);
     if (!Number.isInteger(index) || index === heldIndex) return;
     dragRef.current.to = index;
-    setDropIndex(index);
+    dragRef.current.toPosition = position;
+    setDropPosition(position);
   };
 
   const finishDrag = event => {
-    const { from, to, pointerId } = dragRef.current;
-    if (pointerId !== null) event.currentTarget.releasePointerCapture?.(pointerId);
-    dragRef.current = { from: null, to: null, pointerId: null };
+    const drag = dragRef.current;
+    const { from, to, pointerId, started } = drag;
+    clearDragTimer(drag);
+    if (pointerId !== null && event.currentTarget.hasPointerCapture?.(pointerId)) {
+      event.currentTarget.releasePointerCapture?.(pointerId);
+    }
+    dragRef.current = emptyDrag();
     setDraggingIndex(null);
-    setDropIndex(null);
+    setDraggingPosition(null);
+    setDropPosition(null);
     setDragGhost(null);
-    if (from !== null && to !== null && from !== to) onMove(from, to);
+    if (started && from !== null && to !== null && from !== to) onMove(from, to);
   };
 
   const cancelDrag = event => {
-    const { pointerId } = dragRef.current;
-    if (pointerId !== null) event.currentTarget.releasePointerCapture?.(pointerId);
-    dragRef.current = { from: null, to: null, pointerId: null };
+    const drag = dragRef.current;
+    const { pointerId } = drag;
+    clearDragTimer(drag);
+    if (pointerId !== null && event.currentTarget.hasPointerCapture?.(pointerId)) {
+      event.currentTarget.releasePointerCapture?.(pointerId);
+    }
+    dragRef.current = emptyDrag();
     setDraggingIndex(null);
-    setDropIndex(null);
+    setDraggingPosition(null);
+    setDropPosition(null);
     setDragGhost(null);
   };
 
   return (
     <>
-    <div className={`bgm-queue ${draggingIndex !== null ? 'is-reordering' : ''}`} aria-label="Background playlist queue">
+    <div ref={queueRef} className={`bgm-queue ${draggingIndex !== null ? 'is-reordering' : ''}`} aria-label="Background playlist queue">
       <div className="bgm-queue-heading">
         <span>Autoplay <span className="japanese-label">オートプレイ</span></span>
         <div className="queue-heading-actions">
@@ -75,58 +182,70 @@ function BgmQueue({ playlist, currentIndex, heldIndex, playbackLocked, showPlayb
       </div>
       {playlist.length === 0 ? (
         <p className="queue-empty">Tracks you add will autoplay in this order.</p>
-      ) : playlist.map((path, index) => {
+      ) : orderedPlaylist.map(({ path, sourceIndex: index }, position) => {
         const current = index === currentIndex;
         const locked = index === heldIndex;
+        const pending = index === pendingIndex;
         const displacement = queueDisplacement({
-          index,
-          fromIndex: draggingIndex,
-          toIndex: dropIndex,
+          index: position,
+          fromIndex: draggingPosition,
+          toIndex: dropPosition,
         });
         return (
           <div
-            className={`queue-row ${current ? 'is-current' : ''} ${locked ? 'is-locked' : ''} ${draggingIndex === index ? 'is-dragging' : ''} ${displacement < 0 ? 'is-displaced-up' : ''} ${displacement > 0 ? 'is-displaced-down' : ''}`}
+            className={`queue-row ${current ? 'is-current' : ''} ${pending ? 'is-pending' : ''} ${locked ? 'is-locked' : ''} ${draggingIndex === index ? 'is-dragging' : ''} ${displacement < 0 ? 'is-displaced-up' : ''} ${displacement > 0 ? 'is-displaced-down' : ''}`}
             data-queue-index={index}
+            data-queue-position={position}
             key={path}
           >
             <button
               type="button"
               className="queue-drag-handle"
               disabled={locked}
-              onPointerDown={event => startDrag(event, index)}
+              onPointerDown={event => startDrag(event, index, position)}
               onPointerMove={moveDrag}
               onPointerUp={finishDrag}
               onPointerCancel={cancelDrag}
               onKeyDown={event => {
                 if (event.key === 'ArrowUp') {
                   event.preventDefault();
-                  onMove(index, index - 1);
+                  const previous = orderedPlaylist[position - 1];
+                  if (previous) onMove(index, previous.sourceIndex);
                 }
                 if (event.key === 'ArrowDown') {
                   event.preventDefault();
-                  onMove(index, index + 1);
+                  const next = orderedPlaylist[position + 1];
+                  if (next) onMove(index, next.sourceIndex);
                 }
               }}
-              aria-label={`Reorder ${trackName(path)}. Use arrow keys or drag.`}
+              aria-label={`Reorder ${trackName(path)}. Use arrow keys or hold, then drag.`}
             >
               <GripVertical size={15} />
-              <span>{String(index + 1).padStart(2, '0')}</span>
+              <span>{String(position + 1).padStart(2, '0')}</span>
             </button>
-            <div className="queue-track-copy">
+            <button
+              type="button"
+              className="queue-track-copy"
+              onClick={() => activateTrack(index)}
+              disabled={playbackLocked}
+              aria-label={queueOnly
+                ? `Select ${trackName(path)} to play after performance`
+                : (current && playing ? `Pause ${trackName(path)}` : `Play ${trackName(path)} from here`)}
+            >
               <strong title={trackName(path)}>{trackName(path)}</strong>
-              <span>{locked ? 'Held for return' : (current ? 'Current track' : 'Queued')}</span>
-            </div>
+              <span>{pending ? 'Queued next' : (current ? 'Current track' : 'Queued')}</span>
+            </button>
             <div className="queue-row-actions">
-              {showPlayback && (
-                <button
-                  type="button"
-                  onClick={() => onPlay(index)}
-                  disabled={playbackLocked || current}
-                  aria-label={`Play ${trackName(path)} from here`}
-                  title={playbackLocked ? 'Available after the current performance' : 'Play from here'}
-                ><Play size={16} fill="currentColor" /></button>
-              )}
-              <button type="button" onClick={() => onRemove(index)} disabled={locked} aria-label={`Remove ${trackName(path)} from BGM queue`}><Trash2 size={16} /></button>
+              <button
+                type="button"
+                data-queue-menu-trigger
+                onClick={event => openRowMenu(event, index)}
+                aria-label={`More options for ${trackName(path)}`}
+                aria-expanded={rowMenu?.index === index}
+                title="More options"
+              >
+                <MoreHorizontal size={17} />
+              </button>
             </div>
           </div>
         );
@@ -143,6 +262,48 @@ function BgmQueue({ playlist, currentIndex, heldIndex, playbackLocked, showPlayb
           <strong>{trackName(dragGhost.path)}</strong>
           <span>Move in queue</span>
         </div>
+      </div>,
+      document.body
+    )}
+    {rowMenu && playlist[rowMenu.index] && createPortal(
+      <div
+        className="queue-row-popover"
+        data-queue-menu
+        role="menu"
+        aria-label={`Options for ${trackName(playlist[rowMenu.index])}`}
+        style={{ left: rowMenu.left, top: rowMenu.top, width: rowMenu.width }}
+      >
+        {showPlayback && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              activateTrack(rowMenu.index);
+              setRowMenu(null);
+            }}
+            disabled={playbackLocked}
+          >
+            {queueOnly
+              ? (rowMenu.index === pendingIndex ? <Check size={15} /> : <ListPlus size={15} />)
+              : (rowMenu.index === currentIndex && playing ? <Pause size={15} /> : <Play size={15} />)}
+            <span>{queueOnly
+              ? (rowMenu.index === pendingIndex ? 'Queued next' : 'Queue next')
+              : (rowMenu.index === currentIndex && playing ? 'Pause' : 'Play from here')}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          role="menuitem"
+          className="is-danger"
+          onClick={() => {
+            onRemove(rowMenu.index);
+            setRowMenu(null);
+          }}
+          disabled={rowMenu.index === heldIndex}
+        >
+          <Trash2 size={15} />
+          <span>Remove</span>
+        </button>
       </div>,
       document.body
     )}

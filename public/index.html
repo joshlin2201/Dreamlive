@@ -25,10 +25,21 @@
 
     <title>Dream Live Pro - Dreamland Maid Cafe</title>
 
-    <!-- Service Worker Registration (web/PWA only — skipped inside the native iOS app) -->
+    <!-- Service Worker Registration (web/PWA only — local QA must never render a stale bundle) -->
     <script>
       if ('serviceWorker' in navigator && !window.Capacitor && location.protocol.indexOf('http') === 0) {
         window.addEventListener('load', () => {
+          const localPreview = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+          if (localPreview) {
+            navigator.serviceWorker.getRegistrations()
+              .then(registrations => Promise.all(registrations.map(registration => registration.unregister())));
+            if ('caches' in window) {
+              caches.keys().then(names => Promise.all(names
+                .filter(name => name.startsWith('dreamlive-shell-'))
+                .map(name => caches.delete(name))));
+            }
+            return;
+          }
           navigator.serviceWorker.register('/service-worker.js');
         });
       }

@@ -1,6 +1,6 @@
 // DreamLIVE offline shell. Imported audio remains in IndexedDB and is never
 // copied into the application cache.
-const CACHE_NAME = 'dreamlive-shell-v4';
+const CACHE_NAME = 'dreamlive-shell-v5';
 const CORE_ASSETS = [
   '/',
   '/index.html',

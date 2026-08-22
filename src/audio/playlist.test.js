@@ -3,6 +3,7 @@ import {
   insertPlaylistItem,
   movePlaylistItem,
   nextPlaylistIndex,
+  playlistDisplayOrder,
   previousPlaylistAction,
   queueDisplacement,
   removePlaylistItem,
@@ -10,6 +11,16 @@ import {
 } from './playlist';
 
 describe('background playlist rules', () => {
+  test('presents the active track first without changing playback order', () => {
+    expect(playlistDisplayOrder({ playlist: ['a', 'b', 'c', 'd'], currentIndex: 2 }))
+      .toEqual([
+        { path: 'c', sourceIndex: 2 },
+        { path: 'd', sourceIndex: 3 },
+        { path: 'a', sourceIndex: 0 },
+        { path: 'b', sourceIndex: 1 },
+      ]);
+  });
+
   test('previous restarts after three seconds and otherwise moves backward', () => {
     expect(previousPlaylistAction({ currentIndex: 2, length: 4, currentTime: 8 }))
       .toEqual({ index: 2, restart: true });
