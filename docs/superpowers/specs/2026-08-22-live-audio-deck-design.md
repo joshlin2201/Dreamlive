@@ -10,6 +10,8 @@ Give performers one calm, high-confidence audio deck that remains fast with hund
 
 Success means an employee can import a large library, find a track, build and manage the BGM queue, move backward or forward, pause or resume, seek, and identify the active source without leaving the playback surface.
 
+Performance playback must never depend on BGM already playing. Start and replay controls remain available after output calibration whenever that performance has a track. If BGM is audible, DreamLIVE performs the normal fade handoff; if it is paused, stopped, or absent, the performance starts directly. When the performance ends, a queued BGM track starts or resumes automatically.
+
 ## Chosen approach
 
 Build a shared master-spectrum engine and render it at two densities:
@@ -125,6 +127,8 @@ Selected options must not appear as a second rounded card inside the popover. Te
 
 Use 140 milliseconds for button feedback, 180 milliseconds for popovers and row selection, and 240 milliseconds for panel expansion. Motion uses `cubic-bezier(0.16, 1, 0.3, 1)`. Animate opacity and transform only; never animate layout dimensions during playback. Reduced-motion mode removes translation and keeps short opacity changes.
 
+While any show audio is audible, a restrained continuous field of sakura petals drifts behind the operational surfaces. The field becomes inactive when all audio is paused or stopped, never intercepts input, never lowers control contrast, and is removed under reduced motion.
+
 ## BGM transport deck
 
 The active BGM deck has four zones inside one surface.
@@ -203,11 +207,14 @@ On a 390-pixel viewport, the pinned live transport uses one compact title row, o
 
 - The visualizer follows the audible master signal; it never invents motion when audio is silent.
 - Playback-changing BGM transport controls lock during a fade transition or while a performance owns the output; library and future-queue editing remain available.
+- BGM is optional for starting or replaying a performance. An assigned performance requires output calibration, not active BGM.
+- Performance completion starts or resumes the queued BGM when one exists, including when it was paused before the performance.
 - Setup editing never interrupts a live performance, changes its assigned file, or loses its progress.
 - The active performance slot and held BGM item are the only setup records locked during live playback.
 - Search and queue state never reset playback progress.
 - Import retains the build-7 native fix: supported nonempty files enter the library immediately in Capacitor, while mounted players perform real media loading.
 - A failed selected track stops that channel, names the track, and keeps the queue intact so the operator can choose Next.
+- Initial play, pause/resume, seek, manual track change, and emergency stop use short clickless gain envelopes. Media source or playhead changes occur only while that channel is effectively muted; natural ended events do not add an unnecessary delay.
 - `Stop audio` remains the single emergency control and preserves setup.
 
 ## Responsive behavior
@@ -246,6 +253,7 @@ Automated checks must cover:
 Browser proof must use the production build with at least 300 generated library entries plus real MP3 and M4A files. Verify search latency, keyboard navigation, import, queue edits, previous/play-pause/next, seek, repeat, BGM visualization, performance visualization, live setup expansion, future-slot assignment during playback, return to the live view, pause, transition, and console cleanliness at 390, 768, 1024, and 1366 pixels.
 
 Native proof must repeat real MP3 and M4A import and playback in the Apple-silicon TestFlight app before build 7 is called fixed.
+Native proof must also listen across first play, pause/resume, seek, manual next/previous, BGM-to-performance, performance-to-BGM, and stop for pops or crackle.
 
 ## Release boundary
 

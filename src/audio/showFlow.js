@@ -8,6 +8,8 @@ export const SHOW_PHASE = Object.freeze({
   ERROR: 'error',
 });
 
+export { nextPlaylistIndex } from './playlist';
+
 const reportPhase = (onPhase, phase) => {
   if (onPhase) onPhase(phase);
 };
@@ -43,18 +45,10 @@ export async function finishPerformanceFlow({ restoreBackground, onPhase }) {
 
 export function getShowReadiness({
   outputReady = true,
-  playlistLength,
-  bgPlaying,
   assignedPerformances,
 }) {
   if (!outputReady) {
     return { phase: SHOW_PHASE.SETUP, label: 'Check sound', ready: false };
-  }
-  if (playlistLength < 1) {
-    return { phase: SHOW_PHASE.SETUP, label: 'Add BGM tracks', ready: false };
-  }
-  if (!bgPlaying) {
-    return { phase: SHOW_PHASE.SETUP, label: 'Start BGM', ready: false };
   }
   if (assignedPerformances < 1) {
     return { phase: SHOW_PHASE.SETUP, label: 'Assign a performance', ready: false };
@@ -82,11 +76,4 @@ export function getShowDeckState({
     nextPerformanceIndex: nextPerformance?.index ?? null,
     remainingAssignedCount: incompleteAssigned.length,
   };
-}
-
-export function nextPlaylistIndex({ currentIndex, length, repeat }) {
-  if (length < 1) return null;
-  const next = currentIndex + 1;
-  if (next < length) return next;
-  return repeat ? 0 : null;
 }

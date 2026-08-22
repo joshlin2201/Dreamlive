@@ -47,9 +47,11 @@ function rejection(file, reason) {
 }
 
 export async function processAudioFiles(files, options = {}) {
+  const nativeRuntime = typeof window !== 'undefined' && Boolean(window.Capacitor);
   const {
     concurrency = 3,
     inspect = inspectAudioFile,
+    skipMetadataInspection = nativeRuntime,
     createObjectURL = file => URL.createObjectURL(file),
     revokeObjectURL = url => URL.revokeObjectURL(url),
     onProgress = () => {},
@@ -82,7 +84,10 @@ export async function processAudioFiles(files, options = {}) {
 
     const blobUrl = createObjectURL(file);
     try {
-      const duration = await inspect(blobUrl);
+      // Capacitor's iOS-on-Mac WebView can create the media player but never
+      // resolve metadata for a detached probe. The real, mounted players load
+      // metadata when a track is assigned, so native import must not block here.
+      const duration = skipMetadataInspection ? 0 : await inspect(blobUrl);
       accepted.push({
         index,
         id: `file-${file.name}-${file.size}-${file.lastModified}`,

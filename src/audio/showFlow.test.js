@@ -61,7 +61,7 @@ describe('local show flow', () => {
     ]);
   });
 
-  test('reports readiness from the playlist and assigned performances', () => {
+  test('reports readiness from output calibration and assigned performances', () => {
     expect(getShowReadiness({
       outputReady: false,
       playlistLength: 2,
@@ -69,11 +69,9 @@ describe('local show flow', () => {
       assignedPerformances: 1,
     })).toEqual({ phase: SHOW_PHASE.SETUP, label: 'Check sound', ready: false });
     expect(getShowReadiness({ playlistLength: 0, bgPlaying: false, assignedPerformances: 0 }))
-      .toEqual({ phase: SHOW_PHASE.SETUP, label: 'Add BGM tracks', ready: false });
-    expect(getShowReadiness({ playlistLength: 2, bgPlaying: false, assignedPerformances: 1 }))
-      .toEqual({ phase: SHOW_PHASE.SETUP, label: 'Start BGM', ready: false });
-    expect(getShowReadiness({ playlistLength: 2, bgPlaying: true, assignedPerformances: 0 }))
       .toEqual({ phase: SHOW_PHASE.SETUP, label: 'Assign a performance', ready: false });
+    expect(getShowReadiness({ playlistLength: 0, bgPlaying: false, assignedPerformances: 1 }))
+      .toEqual({ phase: SHOW_PHASE.READY, label: 'Show ready', ready: true });
     expect(getShowReadiness({ playlistLength: 2, bgPlaying: true, assignedPerformances: 3 }))
       .toEqual({ phase: SHOW_PHASE.READY, label: 'Show ready', ready: true });
   });

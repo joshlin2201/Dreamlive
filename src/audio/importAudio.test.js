@@ -67,6 +67,35 @@ describe('local audio import', () => {
     expect(progress.at(-1)).toEqual({ completed: 3, total: 3 });
   });
 
+  test('accepts a native audio file without a detached metadata probe', async () => {
+    const nativeTrack = createFile('external-drive-track.mp3', {
+      type: 'audio/mpeg',
+      size: 9209512,
+    });
+    const inspect = jest.fn(() => Promise.reject(new Error('Audio metadata timed out.')));
+    window.Capacitor = { isNativePlatform: () => true };
+
+    let result;
+    try {
+      result = await processAudioFiles([nativeTrack], {
+        inspect,
+        createObjectURL: () => 'blob:native-track',
+        revokeObjectURL: jest.fn(),
+      });
+    } finally {
+      delete window.Capacitor;
+    }
+
+    expect(result.rejected).toEqual([]);
+    expect(result.accepted).toEqual([expect.objectContaining({
+      name: 'external-drive-track.mp3',
+      path: 'blob:native-track',
+      duration: 0,
+      fileData: nativeTrack,
+    })]);
+    expect(inspect).not.toHaveBeenCalled();
+  });
+
   test('limits simultaneous metadata probes to three', async () => {
     const files = Array.from({ length: 8 }, (_, index) => createFile(`track-${index}.mp3`, {
       type: 'audio/mpeg',
