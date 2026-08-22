@@ -60,6 +60,7 @@
 
 - [x] Add BGM elapsed/duration state, mounted-element seeking, and safe previous/play-pause/next handlers.
 - [x] Remove BGM as a performance-start gate: direct start/replay works after output calibration, while completion starts or resumes queued BGM.
+- [x] Remove output calibration as a gate; Play and Start work immediately, with output testing and level saving available as an optional utility.
 - [x] Replace the unrelated action row with a centered transport cluster, progress scrubber, repeat, and level.
 - [x] Add a responsive searchable library with memoized normalization, exact result count, a 100-result render cap, and Add next/Add to end.
 - [x] Add queue Play from here, move earlier/later, and remove controls with held-item locking during performance playback.
@@ -105,7 +106,7 @@
 - [x] Capture and inspect 390, 768, 1024, and 1366px screenshots; require zero console errors and no horizontal overflow.
 - [x] Verify clickless envelope scheduling with an automated regression; native listening across first play, pause/resume, seek, manual next/previous, both handoffs, and Stop audio remains the release gate.
 
-## Task 8: Release and verify build 7
+## Task 8: Release and verify universal iOS build 8
 
 **Files:**
 - Modify: `ios/App/App.xcodeproj/project.pbxproj`
@@ -113,6 +114,6 @@
 
 - [ ] Confirm `CURRENT_PROJECT_VERSION = 7` and create a signed archive/export.
 - [ ] Upload to App Store Connect, wait for VALID processing, and attach only to internal `DreamLIVE team` TestFlight.
-- [ ] Update/install the TestFlight build on this Mac and repeat real external-drive MP3 plus local M4A import/playback.
+- [ ] Update/install the TestFlight build on this Mac and repeat real external-drive MP3 plus local M4A import/playback; expose the same internal build to iPhone testers for real-hardware proof.
 - [ ] Commit and push the exact tested source; record commit SHA, build id, tests, browser proof, and native proof.
 - [ ] Complete the required Dreamland HQ learning/thread/snapshot closeout without claiming public App Store release.

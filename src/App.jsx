@@ -310,7 +310,6 @@ function App() {
   // global show level DreamLIVE can control and restore for every operator.
   const [masterVolume, setMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
   const [savedMasterVolume, setSavedMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
-  const [soundCheckComplete, setSoundCheckComplete] = useState(false);
   const [soundCheckOpen, setSoundCheckOpen] = useState(false);
   const [isCheckingSound, setIsCheckingSound] = useState(false);
   const [setupExpanded, setSetupExpanded] = useState(true);
@@ -573,10 +572,6 @@ function App() {
     setMasterVolume(safeLevel);
     setSavedMasterVolume(safeLevel);
   }, []);
-
-  useEffect(() => {
-    if (!isLoading && !soundCheckComplete) setSoundCheckOpen(true);
-  }, [isLoading, soundCheckComplete]);
 
   useEffect(() => {
     if (!soundCheckOpen) return undefined;
@@ -1033,12 +1028,6 @@ function App() {
   const toggleBackgroundMusic = async () => {
     if (!bgTrack || !bgAudioRef.current || isFading) return;
     if (currentPerformance !== null) return;
-    if (!soundCheckComplete && !bgPlaying) {
-      setSoundCheckOpen(true);
-      showNotice('Complete the sound check before starting BGM.', 'error');
-      return;
-    }
-
     if (bgPlaying) {
       await pauseClicklessly(bgAudioRef.current, bgGainNodeRef.current);
       setBgPlaying(false);
@@ -1095,11 +1084,6 @@ function App() {
 
   const playBackgroundFrom = async (index) => {
     if (currentPerformance !== null || isFading || !bgPlaylist[index]) return;
-    if (!soundCheckComplete) {
-      setSoundCheckOpen(true);
-      showNotice('Complete the sound check before starting BGM.', 'error');
-      return;
-    }
     if (index === bgIndex) {
       if (bgAudioRef.current) {
         bgAudioRef.current.currentTime = 0;
@@ -1209,12 +1193,11 @@ function App() {
     window.setTimeout(() => setIsCheckingSound(false), 850);
   };
 
-  const confirmSoundCheck = () => {
+  const saveOutputLevel = () => {
     window.localStorage.setItem(MASTER_LEVEL_KEY, String(masterVolume));
     setSavedMasterVolume(masterVolume);
-    setSoundCheckComplete(true);
     closeSoundCheck();
-    showNotice(`Output ready at ${Math.round(masterVolume * 100)}%.`);
+    showNotice(`Output level saved at ${Math.round(masterVolume * 100)}%.`);
   };
 
   const BGM_FADE_SECONDS = 1.1;
@@ -1324,11 +1307,6 @@ function App() {
   // Start performance through one ordered, test-covered show flow.
   const startPerformance = async (index) => {
     if (!perfTracks[index] || currentPerformance !== null || isFading || transitionLockRef.current) return;
-    if (!soundCheckComplete) {
-      setSoundCheckOpen(true);
-      showNotice('Complete the sound check before starting a performance.', 'error');
-      return;
-    }
     transitionLockRef.current = true;
     setShowError('');
     setCurrentPerformance(index);
@@ -1494,10 +1472,7 @@ function App() {
   const completedAssignedCount = performanceStatus.filter((status, index) => (
     status && Boolean(perfTracks[index])
   )).length;
-  const readiness = getShowReadiness({
-    outputReady: soundCheckComplete,
-    assignedPerformances: assignedCount,
-  });
+  const readiness = getShowReadiness({ assignedPerformances: assignedCount });
   const deckState = getShowDeckState({
     ready: readiness.ready,
     assignments: perfTracks.map(Boolean),
@@ -1559,7 +1534,6 @@ function App() {
     || (visiblePhase === SHOW_PHASE.LIVE ? currentPerformanceName : '')
     || (visiblePhase === SHOW_PHASE.PAUSED ? `${currentPerformanceName} · Tap Resume when ready` : '')
     || (visiblePhase === SHOW_PHASE.RESTORING ? `Returning to ${trackName(bgTrack)}` : '')
-    || (!soundCheckComplete ? 'Set device volume, test the room, then confirm output' : '')
     || (audioFiles.length === 0 ? 'Import audio, then assign the first performance' : '')
     || (assignedCount === 0 ? 'Assign the next performance track' : '')
     || `${assignedCount} performance${assignedCount === 1 ? '' : 's'} ready${bgPlaying ? ' · BGM playing' : (bgTrack ? ' · BGM ready' : '')}`;
@@ -1611,12 +1585,12 @@ function App() {
             </button>
           )}
           <button
-            className={`output-status-btn ${soundCheckComplete ? 'ready' : 'needs-check'}`}
+            className="output-status-btn"
             onClick={openSoundCheck}
-            aria-label={`${soundCheckComplete ? 'Output ready' : 'Sound check'}, DreamLIVE level ${Math.round(masterVolume * 100)}%`}
+            aria-label={`Output level, DreamLIVE level ${Math.round(masterVolume * 100)}%`}
           >
-            {soundCheckComplete ? <Check size={18} /> : <SlidersHorizontal size={18} />}
-            <span>{soundCheckComplete ? 'Output ready' : 'Sound check'}</span>
+            <SlidersHorizontal size={18} />
+            <span>Output level</span>
             <strong>{Math.round(masterVolume * 100)}%</strong>
           </button>
           <button
@@ -1649,14 +1623,14 @@ function App() {
               <div className="output-dialog-icon" aria-hidden="true"><Headphones size={22} /></div>
               <div>
                 <span className="section-kicker">Room output</span>
-                <h2 id="output-dialog-title">Sound check ・ 音量確認</h2>
+                <h2 id="output-dialog-title">Output level ・ 音量</h2>
               </div>
               <button
                 ref={soundCheckCloseRef}
                 type="button"
                 className="dialog-close"
                 onClick={closeSoundCheck}
-                aria-label="Close sound check"
+                aria-label="Close output level"
               >
                 <X size={20} />
               </button>
@@ -1717,9 +1691,9 @@ function App() {
                   ? 'Playing test…'
                   : (bgPlaying || currentPerformance !== null ? 'Show audio active' : 'Play test sound')}</span>
               </button>
-              <button type="button" className="confirm-output-btn" onClick={confirmSoundCheck}>
+              <button type="button" className="confirm-output-btn" onClick={saveOutputLevel}>
                 <Check size={18} />
-                <span>Confirm clear sound</span>
+                <span>Save level</span>
               </button>
             </div>
           </section>
@@ -1851,7 +1825,7 @@ function App() {
                   duration={bgDuration}
                   formatTime={formatTime}
                   playing={bgPlaying}
-                  playbackLocked={currentPerformance !== null || isFading || (!soundCheckComplete && !bgPlaying)}
+                  playbackLocked={currentPerformance !== null || isFading}
                   onPrevious={previousBackground}
                   onToggle={toggleBackgroundMusic}
                   onNext={advanceBackground}
@@ -2005,7 +1979,7 @@ function App() {
                       type="button"
                       className="run-primary-action"
                       onClick={() => startPerformance(deckState.nextPerformanceIndex)}
-                      disabled={!soundCheckComplete || isFading}
+                      disabled={isFading}
                     >
                       <Play size={26} />
                       <span className="run-action-label">
@@ -2144,10 +2118,8 @@ function App() {
                             <button
                               className="start-performance-btn"
                               onClick={() => startPerformance(index)}
-                              disabled={!perfTracks[index] || currentPerformance !== null || !soundCheckComplete || isFading}
-                              title={!soundCheckComplete
-                                ? 'Complete the sound check first'
-                                : (performanceStatus[index] ? 'Replay performance' : 'Start performance')}
+                              disabled={!perfTracks[index] || currentPerformance !== null || isFading}
+                              title={performanceStatus[index] ? 'Replay performance' : 'Start performance'}
                               aria-label={`${performanceStatus[index] ? 'Replay' : 'Start'} performance ${index + 1}`}
                             >
                               <Play size={18} />

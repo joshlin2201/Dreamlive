@@ -1,5 +1,13 @@
 const SUPPORTED_AUDIO_EXTENSION = /\.(mp3|wav|ogg|m4a|aac|flac)$/i;
 
+export function isNativeAudioRuntime(runtime = typeof window !== 'undefined' ? window : undefined) {
+  const capacitor = runtime?.Capacitor;
+  const reportsNative = typeof capacitor?.isNativePlatform === 'function'
+    ? capacitor.isNativePlatform()
+    : Boolean(capacitor);
+  return reportsNative || runtime?.location?.protocol === 'capacitor:';
+}
+
 export function inspectAudioFile(blobUrl, options = {}) {
   const {
     createAudio = () => document.createElement('audio'),
@@ -47,7 +55,7 @@ function rejection(file, reason) {
 }
 
 export async function processAudioFiles(files, options = {}) {
-  const nativeRuntime = typeof window !== 'undefined' && Boolean(window.Capacitor);
+  const nativeRuntime = isNativeAudioRuntime();
   const {
     concurrency = 3,
     inspect = inspectAudioFile,

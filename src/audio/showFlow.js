@@ -44,12 +44,8 @@ export async function finishPerformanceFlow({ restoreBackground, onPhase }) {
 }
 
 export function getShowReadiness({
-  outputReady = true,
   assignedPerformances,
 }) {
-  if (!outputReady) {
-    return { phase: SHOW_PHASE.SETUP, label: 'Check sound', ready: false };
-  }
   if (assignedPerformances < 1) {
     return { phase: SHOW_PHASE.SETUP, label: 'Assign a performance', ready: false };
   }

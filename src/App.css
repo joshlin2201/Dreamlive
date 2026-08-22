@@ -191,18 +191,16 @@ audio {
 .setup-toggle-btn:hover:not(:disabled),
 .reset-all-btn:hover:not(:disabled) { color: var(--ink); background: var(--surface-soft); }
 
-.output-status-btn { color: var(--warning); background: var(--warning-soft); }
-.output-status-btn.ready { color: var(--success); background: var(--success-soft); }
+.output-status-btn { color: var(--ink-soft); background: var(--surface-soft); }
+.output-status-btn:hover { color: var(--pink-strong); background: var(--pink-soft); }
 
 .output-status-btn strong {
   min-width: 36px;
   padding-left: 8px;
-  border-left: 1px solid rgba(139, 90, 18, 0.24);
+  border-left: 1px solid var(--line-strong);
   font-size: 12px;
   text-align: right;
 }
-
-.output-status-btn.ready strong { border-left-color: rgba(22, 110, 84, 0.24); }
 
 .stop-audio-btn { color: var(--danger); background: transparent; }
 .stop-audio-btn:hover:not(:disabled) { background: var(--danger-soft); }

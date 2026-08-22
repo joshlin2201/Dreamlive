@@ -208,6 +208,7 @@ On a 390-pixel viewport, the pinned live transport uses one compact title row, o
 - The visualizer follows the audible master signal; it never invents motion when audio is silent.
 - Playback-changing BGM transport controls lock during a fade transition or while a performance owns the output; library and future-queue editing remain available.
 - BGM is optional for starting or replaying a performance. An assigned performance requires output calibration, not active BGM.
+- Output level is an optional utility, never a gate: BGM and performances start immediately, while the operator can open the output sheet at any time to test or save the shared level.
 - Performance completion starts or resumes the queued BGM when one exists, including when it was paused before the performance.
 - Setup editing never interrupts a live performance, changes its assigned file, or loses its progress.
 - The active performance slot and held BGM item are the only setup records locked during live playback.
@@ -252,9 +253,9 @@ Automated checks must cover:
 
 Browser proof must use the production build with at least 300 generated library entries plus real MP3 and M4A files. Verify search latency, keyboard navigation, import, queue edits, previous/play-pause/next, seek, repeat, BGM visualization, performance visualization, live setup expansion, future-slot assignment during playback, return to the live view, pause, transition, and console cleanliness at 390, 768, 1024, and 1366 pixels.
 
-Native proof must repeat real MP3 and M4A import and playback in the Apple-silicon TestFlight app before build 7 is called fixed.
+Native proof must repeat real MP3 and M4A import and playback from internal TestFlight on Apple-silicon Mac and real iPhone hardware before build 8 is called fixed.
 Native proof must also listen across first play, pause/resume, seek, manual next/previous, BGM-to-performance, performance-to-BGM, and stop for pops or crackle.
 
 ## Release boundary
 
-Build 7 may enter the internal `DreamLIVE team` TestFlight group after all automated, browser, archive, and App Store Connect processing gates pass. This work does not authorize a public App Store submission.
+Build 8 may enter the internal `DreamLIVE team` TestFlight group after all automated, browser, archive, and App Store Connect processing gates pass. The binary must support iPhone and iPad. This work does not authorize a public App Store submission.

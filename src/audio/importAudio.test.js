@@ -1,10 +1,22 @@
-import { inspectAudioFile, processAudioFiles } from './importAudio';
+import { inspectAudioFile, isNativeAudioRuntime, processAudioFiles } from './importAudio';
 
 function createFile(name, { size = 1024, type = 'audio/mp4', lastModified = 42 } = {}) {
   return { name, size, type, lastModified };
 }
 
 describe('local audio import', () => {
+  test('recognizes both Capacitor globals and the native URL scheme', () => {
+    expect(isNativeAudioRuntime({
+      Capacitor: { isNativePlatform: () => true },
+      location: { protocol: 'https:' },
+    })).toBe(true);
+    expect(isNativeAudioRuntime({ location: { protocol: 'capacitor:' } })).toBe(true);
+    expect(isNativeAudioRuntime({
+      Capacitor: { isNativePlatform: () => false },
+      location: { protocol: 'https:' },
+    })).toBe(false);
+  });
+
   test('explicitly starts metadata loading before accepting a track', async () => {
     const probe = {
       duration: 233.18,
