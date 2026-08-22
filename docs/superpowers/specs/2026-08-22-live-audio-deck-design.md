@@ -1,7 +1,7 @@
 # DreamLIVE Live Audio Deck Design
 
 **Date:** 2026-08-22  
-**Status:** Revised after operator review; awaiting final approval
+**Status:** Approved for implementation
 **Release target:** DreamLive Pro 1.1.0 (7)
 
 ## Outcome
@@ -55,6 +55,75 @@ Create one `AudioVisualizer` component with `compact` and `focus` variants.
 - Cap canvas pixel density at 2x and resize through `ResizeObserver`.
 - Mark the canvas `aria-hidden`; nearby text states `BGM playing`, `Performance live`, `Paused`, or `Transitioning`.
 - Under reduced motion, update a stable low-frequency/peak shape at a reduced rate instead of continuously dancing.
+
+## Cohesive interface system
+
+Use Apple Music's Now Playing hierarchy as the transport reference: track identity first, one centered playback cluster, progress next, and secondary controls last. Use Ableton Live's state precision as the operational reference: active, held, queued, and disabled sources must read differently without turning the page into a mixer.
+
+### Typography
+
+Use one role-based type system across the app:
+
+- `--font-display`: self-hosted Poppins with `Hiragino Sans`, `Yu Gothic`, and sans-serif fallbacks for Japanese;
+- `--font-ui`: self-hosted Poppins with the same Japanese fallbacks;
+- focus-player title: `clamp(2rem, 3.2vw, 3.25rem)`, weight 700, line height 1.06;
+- section title: `clamp(1.35rem, 1.8vw, 1.8rem)`, weight 650, line height 1.15;
+- control label: 0.875rem to 1rem, weight 600;
+- body and track title: 0.9375rem to 1rem, weight 450 to 550, line height 1.4;
+- eyebrow and metadata: 0.75rem to 0.8125rem, weight 600, modest letter spacing.
+
+Do not render every label in bold. Japanese text receives at least 1.3 line height and never uses a synthetic weight above 700. The focus title must wrap into at most two balanced lines and leave room for the active controls and spectrum.
+
+### Buttons
+
+All buttons share the same base component grammar:
+
+- 40-pixel compact or 48-pixel primary height;
+- 10- to 12-pixel corner radius; pills are reserved for status badges;
+- 12- to 16-pixel horizontal padding, never oversized padding;
+- 18- to 20-pixel icons aligned to an 8-pixel label gap;
+- one 140-millisecond hover/press transition;
+- one `:focus-visible` ring: 2-pixel Dreamland rose with a 2-pixel cream offset;
+- disabled controls keep their geometry and reduce contrast without becoming invisible.
+
+Use six semantic variants only:
+
+1. **Primary:** saturated Dreamland rose for the next intended action.
+2. **Transport:** cocoa text on warm cream for Previous, Pause/Resume, and Next; the active center control may use a rose wash, never unrelated yellow.
+3. **Secondary:** neutral cream for setup and library actions.
+4. **Ghost:** low-priority inline actions with no permanent fill.
+5. **Status control:** pale mint for Output ready; it remains clickable but reads as calibrated state.
+6. **Destructive:** deep berry for Stop audio only while audio is active; idle Stop audio uses the neutral secondary treatment.
+
+Icon-only controls use the same 40- or 44-pixel square geometry and always carry an accessible name. Replace mismatched filled-square glyphs with the existing Lucide icon set.
+
+### Surfaces and depth
+
+Use three elevation levels across the page:
+
+- page ground: warm cream with restrained sakura texture;
+- player surface: one tonal blush or white plane with one soft shadow;
+- floating surface: library and combobox popovers with one hairline and one controlled shadow.
+
+Avoid borders inside bordered cards, broad empty white canvases, and stacked fill-plus-stroke-plus-shadow treatments. The visualizer, track identity, and controls must occupy the large player deliberately. Reduce diagonal color bands to one edge accent so they support the content instead of filling unused space.
+
+### Selection and focus states
+
+Comboboxes and library lists use one selection language:
+
+- remove the browser-blue input outline;
+- apply the shared rose `:focus-visible` ring to the complete search field;
+- use a 3-pixel rose accent rail, a 6-percent blush wash, and one check icon for the selected option;
+- use a quiet cocoa wash for hover and keyboard-active options;
+- keep option rows at least 44 pixels high with medium-weight text;
+- use one 12-pixel popover radius, one hairline, and one shadow;
+- keep the menu attached to its trigger and collision-safe at every viewport.
+
+Selected options must not appear as a second rounded card inside the popover. Text selection may use a low-contrast rose tint, but focus remains visible independently.
+
+### Interaction motion
+
+Use 140 milliseconds for button feedback, 180 milliseconds for popovers and row selection, and 240 milliseconds for panel expansion. Motion uses `cubic-bezier(0.16, 1, 0.3, 1)`. Animate opacity and transform only; never animate layout dimensions during playback. Reduced-motion mode removes translation and keeps short opacity changes.
 
 ## BGM transport deck
 
