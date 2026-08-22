@@ -1,7 +1,7 @@
 # DreamLIVE Live Audio Deck Design
 
 **Date:** 2026-08-22  
-**Status:** Approved direction; written spec awaiting operator review  
+**Status:** Revised after operator review; awaiting final approval
 **Release target:** DreamLive Pro 1.1.0 (7)
 
 ## Outcome
@@ -98,7 +98,7 @@ The queue remains separate from the full library. Each row shows position, title
 - move later;
 - remove.
 
-Selecting another queued track while BGM is playing uses the existing safe fade path, then resumes the selected track. While a performance is live, queue edits remain available but playback selection waits until BGM resumes. The current row stays visually distinct without a nested bordered card.
+Selecting another queued track while BGM is playing uses the existing safe fade path, then resumes the selected track. While a performance is live, operators may add tracks and manage future queue items, but playback selection waits until BGM resumes. The held BGM item remains locked against removal or reordering so the performance handoff returns to the correct track. The current row stays visually distinct without a nested bordered card.
 
 ## Performance focus player
 
@@ -114,11 +114,28 @@ The focus player retains:
 
 Remove the duplicated `Next on stage ・ 次の出演` label while editing this surface.
 
+## Live setup access
+
+The focused performance player must contain a prominent secondary action labeled `Edit show setup`. It remains visible beside the live state, not hidden in the global header. Selecting it opens the setup workspace without pausing, restarting, or seeking the performance.
+
+While setup is open during a performance:
+
+- pin a compact live transport above the workspace with the active title, visualizer, elapsed time, Pause or Resume, `Return to live view`, and emergency `Stop audio` access;
+- keep the full library import action available;
+- allow assignment or replacement of future performance slots, including empty slots;
+- allow BGM search, add-next, add-to-end, and edits to future queue items;
+- lock the active performance slot and held BGM item against replacement, removal, or reorder;
+- disable playback-changing actions such as Play from here, Previous, and Next until the performance ends;
+- preserve every live timer, fade, gain, and completion state while the operator edits setup.
+
+On a 390-pixel viewport, the pinned live transport uses one compact title row, one progress row, and one action row. It must not cover the setup controls or consume more than one-third of the viewport height.
+
 ## State and safety rules
 
 - The visualizer follows the audible master signal; it never invents motion when audio is silent.
-- BGM transport controls lock only during the short fade transition or when a performance owns the output.
-- Queue edits never interrupt a live performance.
+- Playback-changing BGM transport controls lock during a fade transition or while a performance owns the output; library and future-queue editing remain available.
+- Setup editing never interrupts a live performance, changes its assigned file, or loses its progress.
+- The active performance slot and held BGM item are the only setup records locked during live playback.
 - Search and queue state never reset playback progress.
 - Import retains the build-7 native fix: supported nonempty files enter the library immediately in Capacitor, while mounted players perform real media loading.
 - A failed selected track stops that channel, names the track, and keeps the queue intact so the operator can choose Next.
@@ -139,6 +156,7 @@ No breakpoint may create horizontal scrolling, detached popovers, or controls be
 - `BgmTransport`: owns transport presentation and progress input.
 - `AudioLibraryPanel`: searches the imported library and adds tracks to the queue.
 - `BgmQueue`: selects, reorders, and removes queued tracks.
+- `LiveSetupDock`: keeps essential active-performance controls visible while setup is expanded.
 - `App`: remains the show-state and audio-routing owner.
 
 Pure playlist helpers own previous-index, next-index, insertion, reorder, and select-from-queue rules so the live logic stays testable outside React.
@@ -152,9 +170,11 @@ Automated checks must cover:
 - next-track repeat boundary behavior;
 - add-next, add-to-end, reorder, remove, and play-from-here rules;
 - spectrum normalization, decay, idle state, and reduced-motion sampling;
+- live setup expansion without pausing or resetting the current performance;
+- active-slot and held-BGM locking while future slots, imports, and future queue edits remain available;
 - cleanup of animation frames, observers, and analyser connections.
 
-Browser proof must use the production build with at least 300 generated library entries plus real MP3 and M4A files. Verify search latency, keyboard navigation, import, queue edits, previous/play-pause/next, seek, repeat, BGM visualization, performance visualization, pause, transition, and console cleanliness at 390, 768, 1024, and 1366 pixels.
+Browser proof must use the production build with at least 300 generated library entries plus real MP3 and M4A files. Verify search latency, keyboard navigation, import, queue edits, previous/play-pause/next, seek, repeat, BGM visualization, performance visualization, live setup expansion, future-slot assignment during playback, return to the live view, pause, transition, and console cleanliness at 390, 768, 1024, and 1366 pixels.
 
 Native proof must repeat real MP3 and M4A import and playback in the Apple-silicon TestFlight app before build 7 is called fixed.
 
