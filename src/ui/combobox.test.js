@@ -50,4 +50,31 @@ describe('track combobox helpers', () => {
     expect(nextOptionIndex(2, 'Home', 4)).toBe(0);
     expect(nextOptionIndex(1, 'End', 4)).toBe(3);
   });
+
+  test('a menu placed above hangs from the control, not from an assumed height', () => {
+    // A short two-item row menu near the middle of an iPad screen.
+    const position = getPopoverPosition({
+      rect: { top: 560, bottom: 596, left: 900, right: 940, width: 40 },
+      viewportWidth: 1180,
+      viewportHeight: 820,
+      preferredHeight: 108,
+      preferredWidth: 190,
+      align: 'end',
+    });
+
+    if (position.placement === 'top') {
+      // Bottom edge sits one gap above the trigger regardless of menu height.
+      expect(820 - position.bottom).toBe(552);
+    } else {
+      expect(position.top).toBe(604);
+    }
+  });
+
+  test('the bottom anchor never depends on how tall the menu turns out to be', () => {
+    const rect = { top: 700, bottom: 744, left: 24, width: 320 };
+    const short = getPopoverPosition({ rect, viewportWidth: 390, viewportHeight: 844, preferredHeight: 100 });
+    const tall = getPopoverPosition({ rect, viewportWidth: 390, viewportHeight: 844, preferredHeight: 320 });
+    expect(short.bottom).toBe(tall.bottom);
+    expect(844 - short.bottom).toBe(692);
+  });
 });

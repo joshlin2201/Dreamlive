@@ -2060,7 +2060,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 3px s
   border: 1px solid rgba(213, 44, 120, 0.2);
   border-radius: 9px;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   color: var(--ink-soft);
@@ -5123,8 +5123,8 @@ input:focus-visible {
   font-size: 13px;
 }
 
-.complete-clear-lineup-button,
-.run-primary-action.complete-clear-lineup-button {
+.complete-restart-button,
+.run-primary-action.complete-restart-button {
   min-width: 0;
   min-height: 36px;
   margin: 0;
@@ -5361,35 +5361,41 @@ input:focus-visible {
 }
 
 .run-focus-kicker {
-  width: max-content;
-  margin-bottom: 2px;
-  padding: 5px 10px 6px;
-  border-radius: 999px;
-  color: #ae1659;
-  font-size: 12px;
-  font-weight: 760;
-  line-height: 1.05;
-  letter-spacing: 0.025em;
-  background: linear-gradient(110deg, rgba(255, 240, 247, 0.82), rgba(255, 255, 255, 0.46));
-  box-shadow:
-    0 5px 15px rgba(182, 34, 101, 0.06),
-    inset 0 0 0 1px rgba(213, 44, 120, 0.075),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(10px) saturate(1.08);
+  display: block;
+  width: auto;
+  margin: 0;
+  padding: 0 0 5px;
+  border: 0;
+  border-radius: 0;
+  color: #b5165d;
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1;
+  letter-spacing: 0.008em;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .mode-live .run-focus-kicker {
   color: #ad1558;
-  background: linear-gradient(112deg, rgba(255, 234, 244, 0.88), rgba(255, 250, 252, 0.58));
-  box-shadow:
-    0 7px 20px rgba(184, 23, 97, 0.09),
-    inset 0 0 0 1px rgba(213, 44, 120, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  background: transparent;
+  box-shadow: none;
 }
 
-.mode-live .run-focus-kicker .japanese-label { color: rgba(173, 21, 88, 0.62); }
+.run-focus-kicker .japanese-label {
+  color: rgba(173, 21, 88, 0.62);
+  font-size: 0.76em;
+  font-weight: 680;
+  vertical-align: 0.08em;
+}
+
+.run-focus-heading > div { width: 100%; min-width: 0; }
 
 .show-workspace.run-deck .run-action-row {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
   align-items: center;
   gap: 6px;
 }
@@ -5402,61 +5408,61 @@ input:focus-visible {
 }
 
 .run-action-row .run-primary-action {
+  width: auto;
   min-width: 0;
   margin: 0;
-  padding-inline: 13px;
-  border-radius: 10px;
-  font-size: 12px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 760;
   letter-spacing: 0.01em;
   transform: translateZ(0);
 }
 
 .run-action-row .run-primary-action.is-start,
 .run-action-row .run-primary-action:not(.is-pause) {
-  border-color: rgba(213, 44, 120, 0.16);
   color: #ae1459;
-  background: linear-gradient(135deg, rgba(255, 248, 251, 0.97), rgba(246, 214, 230, 0.82));
-  box-shadow:
-    0 9px 24px rgba(184, 23, 97, 0.14),
-    0 2px 7px rgba(184, 23, 97, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  background: linear-gradient(180deg, rgba(255, 248, 251, 0.82), rgba(240, 194, 215, 0.46));
+  box-shadow: 0 4px 12px rgba(184, 23, 97, 0.11);
 }
 
 .run-action-row .run-primary-action.is-pause {
-  border-color: rgba(193, 35, 104, 0.14);
+  width: auto;
+  min-width: 0;
   color: #9f1854;
-  background: linear-gradient(135deg, rgba(255, 247, 251, 0.96), rgba(241, 213, 227, 0.78));
-  box-shadow:
-    0 9px 22px rgba(159, 24, 84, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 249, 252, 0.84), rgba(233, 193, 211, 0.46));
+  box-shadow: 0 4px 11px rgba(159, 24, 84, 0.095);
 }
 
 .run-action-row .run-end-button {
   gap: 6px;
-  padding-inline: 10px;
-  border: 1px solid rgba(142, 32, 72, 0.1);
+  padding-inline: 9px;
+  border: 0;
   border-radius: 9px;
   color: #96224d;
-  background: linear-gradient(135deg, rgba(255, 251, 252, 0.9), rgba(241, 226, 233, 0.76));
-  box-shadow:
-    0 8px 19px rgba(120, 38, 70, 0.095),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  background: rgba(142, 32, 72, 0.055);
+  box-shadow: 0 3px 9px rgba(102, 29, 58, 0.055);
+  font-size: 13px;
+  font-weight: 740;
 }
 
 .run-action-row .run-rail-button {
-  border-color: rgba(213, 44, 120, 0.1);
+  border: 0;
+  border-radius: 9px;
   color: #785866;
-  background: rgba(255, 251, 253, 0.72);
-  box-shadow:
-    0 6px 17px rgba(103, 48, 72, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 3px 9px rgba(87, 42, 61, 0.045);
 }
 
 .run-action-row .run-level-menu > summary {
+  border: 0;
+  border-radius: 0;
   color: #66565e;
   background: transparent;
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 720;
 }
 
 .mode-live .run-action-row svg { stroke-width: 2.15; }
@@ -5464,7 +5470,8 @@ input:focus-visible {
 .run-action-row .run-primary-action:hover:not(:disabled),
 .run-action-row .run-end-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  filter: saturate(1.04);
+  background-color: rgba(232, 42, 137, 0.14);
+  filter: none;
 }
 
 .run-action-row .run-primary-action:active:not(:disabled),
@@ -5482,9 +5489,1142 @@ input:focus-visible {
 }
 
 @media (max-width: 900px), (orientation: portrait) {
-  .run-focus-kicker { padding: 5px 9px 6px; }
+  .run-focus-kicker { padding: 0 0 5px; font-size: 14px; }
   .run-action-row .run-primary-action,
   .run-action-row .run-rail-button,
   .run-action-row .run-end-button,
   .run-action-row .run-level-menu > summary { min-height: 36px; }
+}
+
+/* Otaku-console hierarchy: statement type, flat controls, and title-first queue rows. */
+.show-workspace.run-deck .background-section .section-header {
+  min-height: 44px;
+  margin: 0 0 4px;
+  padding: 4px 2px 9px;
+  border: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.show-workspace.run-deck .background-section .section-title,
+.show-workspace.run-deck .bgm-header-title,
+.show-workspace.run-deck .bgm-header-static {
+  min-height: 0;
+  color: #bd1762;
+  font-size: 21px;
+  font-weight: 840;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+.show-workspace.run-deck .background-section .section-title .japanese-label,
+.show-workspace.run-deck .background-section .bgm-header-title .japanese-label {
+  color: #d94e8d;
+  font-size: 0.56em;
+  font-weight: 720;
+  letter-spacing: 0.085em;
+  vertical-align: 0.12em;
+  opacity: 0.86;
+}
+
+.show-workspace.run-deck .bgm-header-actions {
+  margin-left: 2px;
+  gap: 2px;
+}
+
+.show-workspace.run-deck .bgm-header-level > summary {
+  min-height: 28px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  gap: 4px;
+  color: #b5165d;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11.5px;
+  font-weight: 760;
+  backdrop-filter: none;
+}
+
+.show-workspace.run-deck .bgm-header-level > summary:hover,
+.show-workspace.run-deck .bgm-header-level[open] > summary {
+  border: 0;
+  color: var(--pink-strong);
+  background: transparent;
+  box-shadow: none;
+}
+
+.show-workspace.run-deck .background-section .bgm-queue-heading {
+  min-height: 28px;
+  padding: 2px 1px 4px;
+  border: 0;
+  color: #66545d;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11.5px;
+}
+
+.show-workspace.run-deck .background-section .bgm-queue-heading > span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  font-weight: 780;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.show-workspace.run-deck .background-section .queue-heading-actions { gap: 3px; }
+.show-workspace.run-deck .background-section .queue-heading-actions button {
+  min-height: 26px;
+  padding-inline: 4px;
+}
+
+.show-workspace.run-deck .background-section .queue-row,
+.show-workspace.run-deck .bgm-queue.is-collapsed .queue-row {
+  grid-template-columns: minmax(0, 1fr) 23px;
+  gap: 2px;
+  padding-inline: 4px 1px;
+  touch-action: pan-y;
+}
+
+.show-workspace.run-deck .background-section .queue-drag-handle { display: none; }
+
+.show-workspace.run-deck .background-section .queue-track-cluster {
+  min-width: 0;
+  gap: 3px;
+}
+
+.show-workspace.run-deck .background-section .queue-track-copy {
+  min-width: 0;
+  padding-inline: 2px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.show-workspace.run-deck .background-section .queue-track-copy:active,
+.show-workspace.run-deck .background-section .queue-row.is-dragging .queue-track-copy {
+  cursor: grabbing;
+}
+
+.show-workspace.run-deck .background-section .queue-row-actions,
+.show-workspace.run-deck .background-section .queue-row-actions button {
+  width: 23px;
+  min-width: 23px;
+  padding: 0;
+}
+
+/* Keep the BGM identity on the section surface in every playback state. */
+.show-workspace.run-deck .background-section.is-playing .section-header,
+.show-workspace.run-deck .background-section.is-held .section-header {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) and (min-height: 600px) {
+  .show-workspace.run-deck .background-section .section-header {
+    min-height: 34px;
+    margin-bottom: 1px;
+    padding: 1px 1px 3px;
+  }
+}
+
+/* Empty-stage onboarding: one immersive invitation, no duplicate setup UI. */
+.performances-section.is-library-empty {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 78% 16%, rgba(235, 55, 143, 0.08), transparent 28%),
+    radial-gradient(circle at 18% 84%, rgba(246, 173, 61, 0.055), transparent 26%),
+    rgba(255, 255, 255, 0.74);
+}
+
+.performances-section.is-library-empty > .section-header,
+.performances-section.is-library-empty > .performances-grid {
+  display: none;
+}
+
+.dreamlive-empty-stage {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  align-items: end;
+  min-height: 100%;
+  padding: clamp(34px, 6vw, 72px) clamp(30px, 7vw, 86px) clamp(26px, 4.5vw, 54px);
+  overflow: hidden;
+}
+
+.dreamlive-empty-stage::before {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  content: '';
+  background:
+    linear-gradient(127deg, transparent 0 69%, rgba(236, 65, 145, 0.055) 69% 75%, transparent 75% 79%, rgba(246, 178, 61, 0.06) 79% 84%, transparent 84%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 52%);
+}
+
+.empty-stage-copy {
+  align-self: center;
+  max-width: 640px;
+}
+
+.empty-stage-kicker {
+  display: block;
+  margin-bottom: 12px;
+  color: #bd1762;
+  font-size: 13px;
+  font-weight: 840;
+  letter-spacing: 0.095em;
+}
+
+.empty-stage-kicker .japanese-label {
+  margin-left: 8px;
+  color: rgba(211, 54, 128, 0.65);
+  font-size: 0.82em;
+  letter-spacing: 0.12em;
+}
+
+.empty-stage-copy h2 {
+  margin: 0;
+  max-width: 11ch;
+  color: #2f2228;
+  font-size: clamp(42px, 6.4vw, 72px);
+  font-weight: 880;
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+}
+
+.empty-stage-copy p {
+  max-width: 48ch;
+  margin: 18px 0 0;
+  color: #76636c;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.empty-stage-import {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  margin-top: 22px;
+  padding: 0 15px;
+  border: 1px solid rgba(211, 44, 120, 0.13);
+  border-radius: 11px;
+  color: #ab1557;
+  background: linear-gradient(180deg, rgba(255, 252, 253, 0.9), rgba(247, 220, 232, 0.66));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 9px 26px rgba(174, 28, 94, 0.11);
+  font-size: 13.5px;
+  font-weight: 790;
+  transition: transform 130ms var(--ease-out), box-shadow 160ms var(--ease-state), background-color 160ms var(--ease-state);
+}
+
+.empty-stage-import:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 #fff, 0 12px 30px rgba(174, 28, 94, 0.15);
+}
+
+.empty-stage-spectrum {
+  height: 58px;
+  margin-top: clamp(26px, 6vh, 64px);
+  opacity: 0.76;
+  background: repeating-linear-gradient(90deg, #d51f74 0 5px, transparent 5px 10px);
+  mask-image: linear-gradient(180deg, transparent 4%, #000 22%), linear-gradient(90deg, #000 0 76%, transparent 100%);
+  mask-composite: intersect;
+  clip-path: polygon(0 58%, 4% 34%, 8% 52%, 12% 17%, 16% 41%, 20% 25%, 24% 62%, 28% 31%, 32% 47%, 36% 22%, 40% 56%, 44% 35%, 48% 66%, 52% 32%, 56% 49%, 60% 27%, 64% 60%, 68% 39%, 72% 69%, 76% 43%, 80% 63%, 84% 52%, 88% 74%, 92% 61%, 96% 81%, 100% 68%, 100% 100%, 0 100%);
+}
+
+.empty-stage-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  color: rgba(98, 72, 83, 0.64);
+  font-size: 9.5px;
+  font-weight: 780;
+  letter-spacing: 0.1em;
+}
+
+.empty-stage-flow i {
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(208, 40, 116, 0.32), rgba(208, 40, 116, 0.03));
+}
+
+.show-workspace:not(.run-deck) .library-inline-state {
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 9px;
+  padding: 10px 2px 12px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Performance transport: equal-height, content-sized, quiet depth. */
+.run-action-row .run-primary-action,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button {
+  min-height: 40px;
+  border: 1px solid rgba(151, 53, 94, 0.075);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 6px 17px rgba(101, 35, 63, 0.07);
+}
+
+.run-action-row .run-primary-action {
+  gap: 7px;
+  padding-inline: 13px;
+  color: #a91355;
+  background: linear-gradient(180deg, rgba(255, 251, 253, 0.92), rgba(244, 211, 226, 0.6));
+}
+
+.run-action-row .run-primary-action.is-pause {
+  color: #a20f51;
+  background: linear-gradient(180deg, rgba(255, 250, 252, 0.94), rgba(240, 202, 220, 0.62));
+}
+
+.run-action-row .run-end-button {
+  padding-inline: 12px;
+  color: #8f244b;
+  background: linear-gradient(180deg, rgba(255, 252, 253, 0.8), rgba(237, 220, 227, 0.5));
+}
+
+.run-action-row .run-rail-button {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  color: #755a65;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.run-action-row .run-primary-action:focus-visible,
+.run-action-row .run-end-button:focus-visible,
+.run-action-row .run-rail-button:focus-visible,
+.empty-stage-import:focus-visible {
+  outline: 2px solid rgba(218, 42, 124, 0.58);
+  outline-offset: 2px;
+}
+
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) and (min-height: 600px) {
+  .show-workspace.run-deck .background-section .section-header {
+    min-height: 31px;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 900px), (orientation: portrait) {
+  .dreamlive-empty-stage {
+    min-height: 520px;
+    padding: 38px 30px 28px;
+  }
+  .empty-stage-copy h2 { font-size: clamp(42px, 9vw, 62px); }
+  .empty-stage-spectrum { margin-top: 36px; }
+}
+
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace.is-library-empty:not(.run-deck) {
+    grid-template-rows: 218px minmax(0, 1fr);
+  }
+
+  .show-workspace.is-library-empty:not(.run-deck) .background-section {
+    min-height: 0;
+    margin: 0;
+  }
+
+  .show-workspace.is-library-empty:not(.run-deck) .performances-section {
+    min-height: 0;
+  }
+
+  .show-workspace.is-library-empty:not(.run-deck) .dreamlive-empty-stage {
+    min-height: 100%;
+  }
+}
+
+/* iPad finish: keep transient feedback in the header and let content set the
+   performance stage height instead of reserving empty visualizer space. */
+.app-toast {
+  top: max(7px, calc(env(safe-area-inset-top, 0px) + 7px));
+  max-width: min(48vw, 520px);
+  min-height: 38px;
+  padding: 8px 13px;
+  border-radius: 9px;
+  pointer-events: none;
+}
+
+@media (min-width: 621px) and (max-width: 1400px) and (min-height: 600px) {
+  .show-workspace.run-deck.is-setup-open .performances-section {
+    grid-template-rows: max-content 34px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-focus-panel {
+    align-self: start;
+    height: auto;
+    min-height: 0;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+  }
+
+  .show-workspace.run-deck.is-visualizing.is-setup-open .run-focus-panel {
+    padding-bottom: 4px;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip {
+    height: 50px;
+    min-height: 50px;
+    max-height: 50px;
+    margin: 5px 0 0;
+    padding: 2px 0 0;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip .audio-visualizer.focus {
+    height: 47px;
+    min-height: 47px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) and (min-height: 600px) {
+  .show-workspace.run-deck.is-setup-open .performances-section {
+    grid-template-rows: 174px 34px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    grid-template-rows: 226px 34px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-focus-panel.mode-ready,
+  .show-workspace.run-deck.is-setup-open .run-focus-panel.mode-live {
+    height: 100%;
+    min-height: 0;
+    padding-block: 14px 3px;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip {
+    margin-top: 5px;
+    margin-bottom: 0;
+  }
+}
+
+/* One tactile family: pastel planes, restrained two-step depth, no bulk. */
+.show-workspace.run-deck .run-action-row {
+  gap: 7px;
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow:
+    0 3px 0 rgba(122, 42, 76, 0.08),
+    0 8px 18px rgba(101, 35, 63, 0.065),
+    inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  gap: 7px;
+  padding: 0 13px;
+  color: #a51455;
+  background: rgba(247, 218, 231, 0.78);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.run-action-row .run-primary-action.is-start {
+  background: rgba(247, 218, 231, 0.78);
+}
+
+.run-action-row .run-end-button {
+  color: #9c1e4f;
+}
+
+.run-action-row .run-rail-button {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  color: #745862;
+  background: rgba(255, 252, 253, 0.78);
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: saturate(1.04);
+  box-shadow:
+    0 4px 0 rgba(122, 42, 76, 0.075),
+    0 10px 21px rgba(101, 35, 63, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.run-action-row .run-primary-action:active:not(:disabled),
+.run-action-row .run-end-button:active:not(:disabled),
+.run-action-row .run-rail-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 rgba(122, 42, 76, 0.08),
+    0 4px 10px rgba(101, 35, 63, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+@media (max-width: 620px) {
+  .app-toast {
+    top: max(58px, calc(env(safe-area-inset-top, 0px) + 58px));
+    max-width: calc(100vw - 24px);
+  }
+}
+
+/* The lineup owns whatever room is left under the stage. Earlier passes pinned
+   this scroller to a fixed 208px, so on iPad it cut the list off while the
+   panel below it sat empty; it now fills its own grid row and scrolls inside. */
+@media (min-width: 621px) and (max-width: 1400px) and (min-height: 600px) {
+  .show-workspace.run-deck.is-setup-open .performances-grid {
+    position: static;
+    inset: auto;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* A track can carry every guest vocalist in its title. The stage headline is a
+   fixed part of the layout, so it clamps to two lines and ellipsises instead of
+   growing until it pushes the transport and the lineup off the screen. */
+.run-focus-heading h2,
+.run-complete-state h2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-wrap: initial;
+}
+
+/* With the headline clamped, the stage can size to its own content again: a
+   fixed 174px row was cutting the transport off whenever a title wrapped. */
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) and (min-height: 600px) {
+  .show-workspace.run-deck.is-setup-open .performances-section,
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    grid-template-rows: max-content 34px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-focus-panel.mode-ready,
+  .show-workspace.run-deck.is-setup-open .run-focus-panel.mode-live {
+    height: auto;
+    min-height: 0;
+  }
+}
+
+/* Transport refinement: the run controls are one quiet pastel family. A soft
+   vertical wash and a hairline ring replace the flat slab, depth is a lift
+   rather than a ledge, and spacing is optically tuned - a leading icon carries
+   its own left weight, so the label side gets the wider inset. */
+.show-workspace.run-deck .run-action-row {
+  gap: 9px;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button {
+  gap: 8px;
+  padding: 0 15px 0 12px;
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 252, 0.96) 0%, rgba(248, 219, 232, 0.94) 100%);
+  font-size: 13.5px;
+  font-weight: 750;
+  letter-spacing: 0.006em;
+  box-shadow:
+    inset 0 0 0 1px rgba(213, 44, 120, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 1px rgba(122, 42, 76, 0.045),
+    0 7px 15px -8px rgba(213, 44, 120, 0.42);
+  transition:
+    transform 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out),
+    background 140ms var(--ease-out);
+}
+
+/* Ending a set is a quieter act than starting one. */
+.run-action-row .run-end-button {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 254, 0.94) 0%, rgba(247, 233, 239, 0.92) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(140, 60, 95, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 1px 1px rgba(122, 42, 76, 0.04),
+    0 6px 13px -8px rgba(140, 60, 95, 0.3);
+}
+
+.run-action-row .run-primary-action svg,
+.run-action-row .run-end-button svg {
+  flex: 0 0 auto;
+  color: var(--pink);
+  opacity: 0.92;
+}
+
+.run-action-row .run-rail-button {
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(252, 244, 248, 0.86) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(120, 78, 96, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 5px 11px -7px rgba(87, 42, 61, 0.34);
+}
+
+/* The level readout is information first, control second: a sliver of air sets
+   it apart from the transport, and its pill only appears on approach. */
+.run-action-row .run-level-menu {
+  margin-left: 5px;
+}
+
+.run-action-row .run-level-menu > summary {
+  gap: 6px;
+  min-height: 34px;
+  padding-inline: 9px;
+  border-radius: 9px;
+  color: #6d5b64;
+  transition: background 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+
+.run-action-row .run-level-menu > summary:hover,
+.run-action-row .run-level-menu[open] > summary {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(120, 78, 96, 0.12);
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(213, 44, 120, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 2px 2px rgba(122, 42, 76, 0.05),
+    0 11px 20px -9px rgba(213, 44, 120, 0.46);
+}
+
+.run-action-row .run-primary-action:active:not(:disabled),
+.run-action-row .run-end-button:active:not(:disabled),
+.run-action-row .run-rail-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 0 0 1px rgba(213, 44, 120, 0.2),
+    inset 0 1px 2px rgba(122, 42, 76, 0.12),
+    0 2px 5px -3px rgba(213, 44, 120, 0.3);
+}
+
+.run-action-row .run-primary-action:disabled,
+.run-action-row .run-end-button:disabled,
+.run-action-row .run-rail-button:disabled {
+  transform: none;
+  opacity: 0.55;
+  box-shadow:
+    inset 0 0 0 1px rgba(140, 60, 95, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-action-row .run-primary-action,
+  .run-action-row .run-end-button,
+  .run-action-row .run-rail-button,
+  .run-action-row .run-level-menu > summary { transition: none; }
+
+  .run-action-row .run-primary-action:hover:not(:disabled),
+  .run-action-row .run-end-button:hover:not(:disabled),
+  .run-action-row .run-rail-button:hover:not(:disabled),
+  .run-action-row .run-primary-action:active:not(:disabled),
+  .run-action-row .run-end-button:active:not(:disabled),
+  .run-action-row .run-rail-button:active:not(:disabled) { transform: none; }
+}
+
+/* Clamping a headline crops its descenders, so the stage title gets the sliver
+   of room a 'g' needs; the bilingual kicker above it reads at a real size; and
+   Start Performance carries more weight than the controls around it without
+   leaving the family. */
+.run-focus-heading h2,
+.run-complete-state h2 {
+  padding-bottom: 5px;
+  line-height: 1.14;
+}
+
+.run-focus-kicker {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.run-focus-kicker .japanese-label {
+  font-size: 12px;
+}
+
+.run-action-row .run-primary-action.is-start {
+  min-height: 44px;
+  height: 44px;
+  padding: 0 19px 0 15px;
+  border-radius: 13px;
+  color: #97064c;
+  background:
+    linear-gradient(180deg, rgba(255, 246, 250, 0.98) 0%, rgba(249, 209, 227, 0.97) 100%);
+  font-size: 14.5px;
+  font-weight: 800;
+  box-shadow:
+    inset 0 0 0 1px rgba(213, 44, 120, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 1px rgba(122, 42, 76, 0.06),
+    0 10px 22px -10px rgba(213, 44, 120, 0.62);
+}
+
+.run-action-row .run-primary-action.is-start svg {
+  opacity: 1;
+}
+
+.run-action-row .run-primary-action.is-start:hover:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px rgba(213, 44, 120, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 2px 3px rgba(122, 42, 76, 0.06),
+    0 15px 28px -11px rgba(213, 44, 120, 0.68);
+}
+
+/* Deck-scoped so it outranks the per-viewport heading rules above. */
+.show-workspace.run-deck .run-focus-heading h2,
+.show-workspace.run-deck .run-complete-state h2 {
+  padding-bottom: 8px;
+  line-height: 1.16;
+}
+
+/* An inset ring lands on a half device pixel along the bottom edge, which reads
+   as a broken hairline. A real border draws all four sides crisply, the wash
+   ends softer so the lower edge is not a tonal step, and the lift hugs the
+   shape instead of starting below it. */
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button {
+  border: 1px solid rgba(213, 44, 120, 0.18);
+  background-clip: padding-box;
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(122, 42, 76, 0.05),
+    0 6px 14px -7px rgba(213, 44, 120, 0.34);
+}
+
+.run-action-row .run-end-button {
+  border-color: rgba(140, 60, 95, 0.16);
+}
+
+.run-action-row .run-rail-button {
+  border-color: rgba(120, 78, 96, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 4px 10px -6px rgba(87, 42, 61, 0.3);
+}
+
+.run-action-row .run-primary-action.is-start {
+  border-color: rgba(213, 44, 120, 0.26);
+  background:
+    linear-gradient(180deg, rgba(255, 247, 251, 0.99) 0%, rgba(250, 214, 231, 0.98) 78%, rgba(252, 226, 238, 0.98) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(122, 42, 76, 0.06),
+    0 9px 20px -9px rgba(213, 44, 120, 0.5);
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled),
+.run-action-row .run-primary-action.is-start:hover:not(:disabled) {
+  border-color: rgba(213, 44, 120, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 3px rgba(122, 42, 76, 0.06),
+    0 13px 26px -10px rgba(213, 44, 120, 0.55);
+}
+
+.run-action-row .run-primary-action:active:not(:disabled),
+.run-action-row .run-end-button:active:not(:disabled),
+.run-action-row .run-rail-button:active:not(:disabled) {
+  box-shadow:
+    inset 0 1px 3px rgba(122, 42, 76, 0.14),
+    0 1px 3px -1px rgba(213, 44, 120, 0.24);
+}
+
+.run-action-row .run-primary-action:disabled,
+.run-action-row .run-end-button:disabled,
+.run-action-row .run-rail-button:disabled {
+  border-color: rgba(140, 60, 95, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 2D transport: flat pastel planes with a hard offset shadow, the way a printed
+   sticker sits on paper. No blur, no gradient, no glow - the only depth cue is
+   the offset, and pressing a control moves it down onto its own shadow. */
+.show-workspace.run-deck .run-action-row {
+  gap: 8px;
+  padding-bottom: 3px;
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button {
+  min-height: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background-image: none;
+  transition:
+    transform 110ms var(--ease-out),
+    box-shadow 110ms var(--ease-out),
+    background-color 110ms var(--ease-out);
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button {
+  gap: 7px;
+  padding: 0 13px 0 11px;
+  border-color: rgba(213, 44, 120, 0.2);
+  background-color: #fdeef4;
+  font-size: 13.5px;
+  font-weight: 750;
+  box-shadow: 0 3px 0 rgba(213, 44, 120, 0.16);
+}
+
+.run-action-row .run-end-button {
+  border-color: rgba(140, 60, 95, 0.18);
+  background-color: #fbf1f4;
+  box-shadow: 0 3px 0 rgba(140, 60, 95, 0.14);
+}
+
+.run-action-row .run-rail-button {
+  width: 38px;
+  min-width: 38px;
+  border-color: rgba(120, 78, 96, 0.16);
+  background-color: #fffafc;
+  box-shadow: 0 3px 0 rgba(120, 78, 96, 0.12);
+}
+
+/* The centerpiece: same geometry family, one step more saturated and one step
+   taller a shadow, so it leads without becoming a different control. */
+.run-action-row .run-primary-action.is-start {
+  min-height: 40px;
+  height: 40px;
+  padding: 0 15px 0 12px;
+  border-radius: 11px;
+  border-color: rgba(213, 44, 120, 0.32);
+  background-color: #fbdeeb;
+  color: #97064c;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 4px 0 rgba(213, 44, 120, 0.26);
+}
+
+.run-action-row .run-level-menu > summary {
+  min-height: 32px;
+  box-shadow: none;
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 rgba(213, 44, 120, 0.2);
+}
+
+.run-action-row .run-primary-action.is-start:hover:not(:disabled) {
+  background-color: #fad7e7;
+  box-shadow: 0 5px 0 rgba(213, 44, 120, 0.3);
+}
+
+.run-action-row .run-primary-action:active:not(:disabled),
+.run-action-row .run-end-button:active:not(:disabled),
+.run-action-row .run-rail-button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 rgba(213, 44, 120, 0.22);
+}
+
+.run-action-row .run-primary-action.is-start:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 rgba(213, 44, 120, 0.3);
+}
+
+.run-action-row .run-primary-action:disabled,
+.run-action-row .run-end-button:disabled,
+.run-action-row .run-rail-button:disabled {
+  transform: none;
+  opacity: 0.5;
+  box-shadow: 0 2px 0 rgba(140, 60, 95, 0.1);
+}
+
+/* Balance the stage block: the eyebrow becomes a real pastel chip so it can
+   hold its own against the transport below, and the level control joins the
+   same 2D family instead of floating as loose text beside a button. */
+.run-focus-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  margin-bottom: 2px;
+  padding: 0 11px;
+  border: 1px solid rgba(213, 44, 120, 0.22);
+  border-radius: 999px;
+  background-color: #fdeef4;
+  box-shadow: 0 2px 0 rgba(213, 44, 120, 0.14);
+  color: var(--pink-strong);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.run-focus-kicker .japanese-label {
+  color: rgba(184, 23, 97, 0.68);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.run-focus-kicker + h2 { margin-top: 9px; }
+
+.run-action-row .run-level-menu {
+  margin-left: 2px;
+}
+
+.run-action-row .run-level-menu > summary {
+  gap: 6px;
+  min-height: 38px;
+  height: 38px;
+  padding-inline: 11px;
+  border: 1px solid rgba(120, 78, 96, 0.16);
+  border-radius: 10px;
+  background-color: #fffafc;
+  box-shadow: 0 3px 0 rgba(120, 78, 96, 0.12);
+  color: #6d5b64;
+  font-size: 12.5px;
+  font-weight: 750;
+  transition:
+    transform 110ms var(--ease-out),
+    box-shadow 110ms var(--ease-out),
+    background-color 110ms var(--ease-out);
+}
+
+.run-action-row .run-level-menu > summary:hover,
+.run-action-row .run-level-menu[open] > summary {
+  transform: translateY(-1px);
+  background-color: #fff5f9;
+  box-shadow: 0 4px 0 rgba(120, 78, 96, 0.16);
+}
+
+.run-action-row .run-level-menu > summary:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 rgba(120, 78, 96, 0.16);
+}
+
+.run-action-row .run-level-menu > summary svg {
+  color: var(--pink);
+  opacity: 0.85;
+}
+
+/* A hard 2px ring offset from a control that already has a border reads as an
+   ugly double outline. Focus is a soft pastel halo that sits in the same
+   language as the flat shadow it composes with. */
+.run-action-row .run-primary-action:focus-visible,
+.run-action-row .run-primary-action.is-start:focus-visible,
+.run-action-row .run-end-button:focus-visible,
+.run-action-row .run-rail-button:focus-visible,
+.run-action-row .run-level-menu > summary:focus-visible {
+  outline: none;
+  box-shadow:
+    0 3px 0 rgba(213, 44, 120, 0.16),
+    0 0 0 3px rgba(213, 44, 120, 0.16);
+}
+
+.run-action-row .run-primary-action.is-start:focus-visible {
+  box-shadow:
+    0 4px 0 rgba(213, 44, 120, 0.26),
+    0 0 0 3px rgba(213, 44, 120, 0.2);
+}
+
+.run-action-row .run-rail-button:focus-visible,
+.run-action-row .run-level-menu > summary:focus-visible {
+  box-shadow:
+    0 3px 0 rgba(120, 78, 96, 0.12),
+    0 0 0 3px rgba(120, 78, 96, 0.14);
+}
+
+/* One icon weight across the transport: outlined marks, never a filled slab. */
+.run-action-row .run-primary-action svg,
+.run-action-row .run-end-button svg,
+.run-action-row .run-rail-button svg {
+  fill: none;
+  stroke-width: 2.1;
+}
+
+/* No badge - the announcement carries by size and colour alone, the way a
+   marquee line does above a headline. */
+.run-focus-kicker {
+  display: block;
+  min-height: 0;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--pink);
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.run-focus-kicker .japanese-label {
+  color: rgba(213, 44, 120, 0.62);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.run-focus-kicker + h2 { margin-top: 7px; }
+
+/* Menus belong to the same paper-and-hairline language as the controls that
+   open them: a quiet border, a low flat drop, pastel hover. */
+.select-dropdown.is-action-menu {
+  border: 1px solid rgba(120, 78, 96, 0.16);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow:
+    0 4px 0 rgba(120, 78, 96, 0.07),
+    0 14px 26px -14px rgba(87, 42, 61, 0.4);
+}
+
+.performance-actions-menu button {
+  min-height: 36px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.performance-actions-menu button:hover:not(:disabled) {
+  background: var(--surface-active);
+}
+
+.performance-actions-menu button svg {
+  color: var(--pink);
+  opacity: 0.9;
+}
+
+.performance-actions-menu button.is-danger svg { color: #b4234f; }
+
+/* Portrait: the stage panel can run a little taller than its grid row, and the
+   lineup header sat transparently on top of it, so the visualizer bars read
+   straight through 'Lineup' and 'Restart Dream Live'. The header and the rows
+   own an opaque surface here, so the boundary between stage and lineup is a
+   real edge instead of a collision. */
+@media (orientation: portrait) {
+  .show-workspace.run-deck.is-setup-open .run-setup-header {
+    position: relative;
+    z-index: 6;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+
+  .show-workspace.run-deck.is-setup-open .performances-grid {
+    position: relative;
+    z-index: 5;
+    background: var(--surface);
+  }
+}
+
+/* A clamped headline reports a one-line intrinsic height, so the stage row was
+   sized short and squashed the visualizer against the lineup. Portrait gets an
+   explicit floor that covers two title lines plus a full-height signal strip. */
+@media (orientation: portrait) {
+  .show-workspace.run-deck.is-visualizing.is-setup-open .run-focus-panel {
+    min-height: 336px;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip {
+    height: 100px;
+    min-height: 100px;
+    max-height: 100px;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip .audio-visualizer.focus {
+    height: 100px;
+    min-height: 100px;
+  }
+}
+
+/* The stage row was pinned to a fixed height that predates the taller strip and
+   the two-line title. Let it size to its content in portrait, floored by the
+   panel's own min-height, so nothing is squashed or pushed under the lineup. */
+@media (orientation: portrait) {
+  .show-workspace.run-deck.is-setup-open .performances-section,
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    grid-template-rows: max-content 34px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-focus-panel {
+    align-self: start;
+    height: auto;
+  }
+}
+
+/* Landscape has the room too: the signal strip reads as a stage element, not a
+   sliver. The lineup below still fits its rows without scrolling. */
+@media (orientation: landscape) and (min-width: 901px) and (min-height: 700px) {
+  .show-workspace.run-deck.is-visualizing .run-signal-strip {
+    height: 84px;
+    min-height: 84px;
+    max-height: 84px;
+    margin: 6px 0 0;
+    padding: 0;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip .audio-visualizer.focus {
+    height: 84px;
+    min-height: 84px;
+  }
 }

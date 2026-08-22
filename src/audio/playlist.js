@@ -1,5 +1,41 @@
 const unchanged = (playlist, currentIndex) => ({ playlist, currentIndex, changed: false });
 
+export function canStartQueueDrag({ locked = false, collapsed = false, interactiveControl = false }) {
+  return !locked && !collapsed && !interactiveControl;
+}
+
+export function queueTrackShowsPause({ current = false, pending = false, playing = false, queueOnly = false }) {
+  return (current && playing) || (queueOnly && (current || pending));
+}
+
+export function queueDisplayIndex({ currentIndex = 0, pendingIndex = -1, queueOnly = false }) {
+  return queueOnly && Number.isInteger(pendingIndex) && pendingIndex >= 0
+    ? pendingIndex
+    : currentIndex;
+}
+
+export function queuePlaylistItemNext({ playlist, index, currentIndex = 0 }) {
+  if (index < 0 || index >= playlist.length || currentIndex < 0 || currentIndex >= playlist.length) {
+    return { playlist, currentIndex, queuedIndex: null, changed: false };
+  }
+  if (index === currentIndex) {
+    return { playlist, currentIndex, queuedIndex: currentIndex, changed: false };
+  }
+
+  const currentItem = playlist[currentIndex];
+  const queuedItem = playlist[index];
+  const next = playlist.filter((_, itemIndex) => itemIndex !== index);
+  const nextCurrentIndex = next.indexOf(currentItem);
+  const queuedIndex = Math.min(nextCurrentIndex + 1, next.length);
+  next.splice(queuedIndex, 0, queuedItem);
+  return {
+    playlist: next,
+    currentIndex: nextCurrentIndex,
+    queuedIndex,
+    changed: next.some((item, itemIndex) => item !== playlist[itemIndex]),
+  };
+}
+
 export function playlistDisplayOrder({ playlist, currentIndex = 0, maxItems = null }) {
   if (playlist.length === 0) return [];
   const safeIndex = Math.max(0, Math.min(currentIndex, playlist.length - 1));

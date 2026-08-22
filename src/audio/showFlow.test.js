@@ -8,8 +8,10 @@ import {
   nextPlaylistIndex,
   promotePerformanceOrder,
   shouldShowRunDeck,
+  shouldSyncPlaybackProgress,
   startPerformanceFlow,
   visiblePerformanceOrder,
+  endFadeDecision,
 } from './showFlow';
 
 describe('local show flow', () => {
@@ -195,5 +197,38 @@ describe('local show flow', () => {
       assignments: ['a', '', '', ''],
       hasStarted: false,
     })).toEqual([0, 1, 2, 3]);
+  });
+
+  test('does not let playback ticks fight a seek gesture', () => {
+    expect(shouldSyncPlaybackProgress({
+      isPlaying: true,
+      isSeeking: true,
+      audioTime: 42,
+      renderedTime: 12,
+    })).toBe(false);
+    expect(shouldSyncPlaybackProgress({
+      isPlaying: true,
+      isSeeking: false,
+      audioTime: 42,
+      renderedTime: 12,
+    })).toBe(true);
+  });
+
+  test('a track that runs out is ridden down instead of cutting at full level', () => {
+    const fadeSeconds = 3;
+    // Mid-track: nothing to do.
+    expect(endFadeDecision({ duration: 200, currentTime: 10, fadeSeconds })).toBe('hold');
+    // Inside the last three seconds: start the tail fade, once.
+    expect(endFadeDecision({ duration: 200, currentTime: 197.4, fadeSeconds })).toBe('fade');
+    expect(endFadeDecision({ duration: 200, currentTime: 197.4, fadeSeconds, started: true })).toBe('hold');
+    // Scrubbing back into the body of the track restores full level.
+    expect(endFadeDecision({ duration: 200, currentTime: 100, fadeSeconds, started: true })).toBe('cancel');
+    // A dragging operator owns the level; never fade under their hand.
+    expect(endFadeDecision({ duration: 200, currentTime: 199, fadeSeconds, isSeeking: true })).toBe('hold');
+    // A very short cue never spends more than half of itself fading.
+    expect(endFadeDecision({ duration: 4, currentTime: 2.4, fadeSeconds })).toBe('fade');
+    expect(endFadeDecision({ duration: 4, currentTime: 1.5, fadeSeconds })).toBe('hold');
+    // Unknown duration cannot be reasoned about.
+    expect(endFadeDecision({ duration: 0, currentTime: 0, fadeSeconds })).toBe('hold');
   });
 });

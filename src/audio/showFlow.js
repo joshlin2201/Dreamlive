@@ -122,3 +122,35 @@ export function visiblePerformanceOrder({
   if (!hasStarted) return order;
   return order.filter(index => Boolean(assignments[index]) || index === draftIndex);
 }
+
+export function shouldSyncPlaybackProgress({
+  isPlaying = false,
+  isSeeking = false,
+  audioTime = 0,
+  renderedTime = 0,
+}) {
+  return Boolean(
+    isPlaying
+    && !isSeeking
+    && Number.isFinite(audioTime)
+    && Math.abs(audioTime - renderedTime) > 0.05
+  );
+}
+
+// A track that simply runs out stops at full level, which the room hears as a
+// cut. This decides when to ride the last seconds down, and when an operator
+// scrubbing back into the track should cancel that tail fade.
+export function endFadeDecision({
+  duration = 0,
+  currentTime = 0,
+  fadeSeconds = 0,
+  started = false,
+  isSeeking = false,
+}) {
+  if (isSeeking || !Number.isFinite(duration) || duration <= 0) return 'hold';
+  const window = Math.min(fadeSeconds, duration / 2);
+  const remaining = duration - currentTime;
+  if (remaining <= window) return started ? 'hold' : 'fade';
+  if (started && remaining > window + 0.35) return 'cancel';
+  return 'hold';
+}

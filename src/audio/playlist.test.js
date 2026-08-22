@@ -1,16 +1,49 @@
 import {
+  canStartQueueDrag,
   filterAudioLibrary,
   insertPlaylistItem,
   movePlaylistItem,
   nextPlaylistIndex,
   playlistDisplayOrder,
   previousPlaylistAction,
+  queuePlaylistItemNext,
+  queueTrackShowsPause,
   queueDisplacement,
+  queueDisplayIndex,
   removePlaylistItem,
   shufflePlaylist,
 } from './playlist';
 
 describe('background playlist rules', () => {
+  test('keeps the held BGM row in its pause state during a performance', () => {
+    expect(queueTrackShowsPause({ current: true, playing: false, queueOnly: true })).toBe(true);
+    expect(queueTrackShowsPause({ current: false, pending: true, playing: false, queueOnly: true })).toBe(true);
+    expect(queueTrackShowsPause({ current: true, playing: true, queueOnly: false })).toBe(true);
+    expect(queueTrackShowsPause({ current: false, playing: true, queueOnly: true })).toBe(false);
+  });
+
+  test('shows the selected return track at the front while a performance owns playback', () => {
+    expect(queueDisplayIndex({ currentIndex: 0, pendingIndex: 3, queueOnly: true })).toBe(3);
+    expect(queueDisplayIndex({ currentIndex: 0, pendingIndex: 3, queueOnly: false })).toBe(0);
+    expect(queueDisplayIndex({ currentIndex: 2, pendingIndex: -1, queueOnly: true })).toBe(2);
+  });
+
+  test('promotes a selected return track to the front of the upcoming queue', () => {
+    expect(queuePlaylistItemNext({
+      playlist: ['a', 'b', 'c', 'd'], index: 3, currentIndex: 1,
+    })).toEqual({ playlist: ['a', 'b', 'd', 'c'], currentIndex: 1, queuedIndex: 2, changed: true });
+    expect(queuePlaylistItemNext({
+      playlist: ['a', 'b', 'c', 'd'], index: 0, currentIndex: 2,
+    })).toEqual({ playlist: ['b', 'c', 'a', 'd'], currentIndex: 1, queuedIndex: 2, changed: true });
+  });
+
+  test('uses the track surface for reordering while protecting playback controls', () => {
+    expect(canStartQueueDrag({ locked: false, collapsed: false, interactiveControl: false })).toBe(true);
+    expect(canStartQueueDrag({ locked: true, collapsed: false, interactiveControl: false })).toBe(false);
+    expect(canStartQueueDrag({ locked: false, collapsed: true, interactiveControl: false })).toBe(false);
+    expect(canStartQueueDrag({ locked: false, collapsed: false, interactiveControl: true })).toBe(false);
+  });
+
   test('presents the active track first without changing playback order', () => {
     expect(playlistDisplayOrder({ playlist: ['a', 'b', 'c', 'd'], currentIndex: 2 }))
       .toEqual([

@@ -26,12 +26,15 @@ import {
   promotePerformanceOrder,
   resolvePerformanceCompletion,
   shouldShowRunDeck,
+  endFadeDecision,
+  shouldSyncPlaybackProgress,
   startPerformanceFlow,
   visiblePerformanceOrder,
 } from './audio/showFlow';
 import {
   insertPlaylistItem,
   movePlaylistItem,
+  queuePlaylistItemNext,
   removePlaylistItem,
   shufflePlaylist,
 } from './audio/playlist';
@@ -39,6 +42,9 @@ import { processAudioFiles } from './audio/importAudio';
 import {
   AUDIO_TRANSITION_SECONDS,
   CLICKLESS_MUTE_SECONDS,
+  fadeStartValue,
+  handoffLeadSeconds,
+  setGainImmediately,
   scheduleGainEnvelope,
 } from './audio/gainEnvelope';
 import {
@@ -52,6 +58,53 @@ import AudioVisualizer from './components/AudioVisualizer';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
 import BgmQueue from './components/BgmQueue';
 import './App.css';
+
+function StableVolumeSlider({ value, ariaLabel, onPreview, onCommit }) {
+  const inputRef = useRef(null);
+  const outputRef = useRef(null);
+  const latestValueRef = useRef(value);
+  const interactingRef = useRef(false);
+
+  const preview = event => {
+    const next = Number.parseFloat(event.currentTarget.value);
+    latestValueRef.current = next;
+    if (outputRef.current) outputRef.current.textContent = `${Math.round(next * 100)}%`;
+    onPreview(next);
+  };
+
+  const commit = () => {
+    interactingRef.current = false;
+    onCommit(latestValueRef.current);
+  };
+
+  useEffect(() => {
+    if (interactingRef.current) return;
+    latestValueRef.current = value;
+    if (inputRef.current) inputRef.current.value = String(value);
+    if (outputRef.current) outputRef.current.textContent = `${Math.round(value * 100)}%`;
+  }, [value]);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        defaultValue={value}
+        onPointerDown={() => { interactingRef.current = true; }}
+        onInput={preview}
+        onPointerUp={commit}
+        onPointerCancel={commit}
+        onKeyUp={commit}
+        onBlur={commit}
+        aria-label={ariaLabel}
+      />
+      <strong ref={outputRef}>{Math.round(value * 100)}%</strong>
+    </>
+  );
+}
 
 // Searchable Select Component
 function SearchableSelect({
@@ -128,6 +181,7 @@ function SearchableSelect({
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
         preferredWidth: compactActions && menuStage === 'actions' ? 190 : menuWidth,
+        preferredHeight: compactActions && menuStage === 'actions' ? 108 : 320,
         align: menuAlign,
       }));
     };
@@ -199,7 +253,9 @@ function SearchableSelect({
           data-placement={position.placement}
           style={{
             position: 'fixed',
-            top: `${position.top}px`,
+            ...(position.placement === 'top'
+              ? { bottom: `${position.bottom}px` }
+              : { top: `${position.top}px` }),
             left: `${position.left}px`,
             width: `${position.width}px`,
             '--menu-max-height': `${position.maxHeight}px`,
@@ -367,6 +423,7 @@ function App() {
   const [loopCurrentTrack, setLoopCurrentTrack] = useState(false);
   const [bgPlaying, setBgPlaying] = useState(false);
   const [bgVolume, setBgVolume] = useState(0.5);
+  const bgVolumeRef = useRef(0.5);
   const [pendingBgTrack, setPendingBgTrack] = useState('');
   const pendingBgTrackRef = useRef('');
   const [bgQueueExpanded, setBgQueueExpanded] = useState(true);
@@ -381,6 +438,7 @@ function App() {
   const [perfTracks, setPerfTracks] = useState(() => performanceArray(''));
   const [perfPlaying, setPerfPlaying] = useState(() => performanceArray(false));
   const [perfVolumes, setPerfVolumes] = useState(() => performanceArray(0.8));
+  const perfVolumesRef = useRef(performanceArray(0.8));
   const [perfProgress, setPerfProgress] = useState(() => performanceArray(0));
   const [perfDurations, setPerfDurations] = useState(() => performanceArray(0));
   const [currentPerformance, setCurrentPerformance] = useState(null);
@@ -429,9 +487,15 @@ function App() {
 
   // Fade + notice bookkeeping
   const fadeTimeoutRef = useRef(null);
+  const bgTailTimeoutRef = useRef(null);
+  const endFadeStartedRef = useRef({});
+  const bgReturnStartedRef = useRef(false);
+  const returnBackgroundRef = useRef(() => {});
   const fadeResolverRef = useRef(null);
   const transitionLockRef = useRef(false);
   const seekTimeoutRefs = useRef({ bg: null, perf: performanceArray(null) });
+  const performanceSeekingRef = useRef(performanceArray(false));
+  const performanceSeekReleaseRefs = useRef(performanceArray(null));
   const settingsHydratedRef = useRef(false);
   const playbackStateRef = useRef({ bgPlaying: false, currentPerformance: null, perfPlaying: [] });
   const [notice, setNotice] = useState(null);
@@ -527,8 +591,11 @@ function App() {
     const ctx = audioContextRef.current;
     if (ctx && seconds > 0) {
       const now = ctx.currentTime;
+      // Start the rise at an audible level. From the silence floor an
+      // exponential ramp is inaudible for most of its length, which is why a
+      // long fade-in used to sound like a gap followed by a sudden entrance.
       gainNode.gain.cancelScheduledValues(now);
-      gainNode.gain.setValueAtTime(Math.max(gainNode.gain.value, 0.0001), now);
+      gainNode.gain.setValueAtTime(fadeStartValue(target, gainNode.gain.value), now);
       gainNode.gain.exponentialRampToValueAtTime(Math.max(target, 0.0002), now + seconds);
     } else if (ctx) {
       gainNode.gain.cancelScheduledValues(ctx.currentTime);
@@ -544,7 +611,8 @@ function App() {
       resolve();
       return;
     }
-    const start = audio.volume;
+    const start = target > audio.volume ? fadeStartValue(target, audio.volume) : audio.volume;
+    audio.volume = start;
     const startedAt = window.performance.now();
     const step = now => {
       const progress = Math.min(1, (now - startedAt) / (seconds * 1000));
@@ -569,18 +637,35 @@ function App() {
     return gain;
   };
 
+  // `holdSeconds` is how long the caller waits before moving on. Left at the
+  // full duration this is a plain fade-out; set shorter, the fade keeps running
+  // underneath whatever starts next, so a long transition has no silent gap.
+  // A gain node only shapes what you hear once its media element is actually
+  // connected to it. WebKit refuses that connection for a reused element, and a
+  // fade scheduled on an unrouted node is silent - the track simply stops. Every
+  // fade path resolves through these so it falls back to element volume instead.
+  const routedBgGain = () => (bgSourceNodeRef.current ? bgGainNodeRef.current : null);
+  const routedPerfGain = index => (
+    perfSourceNodeRefs.current[index] ? perfGainNodeRefs.current[index] : null
+  );
+
   const pauseClicklessly = async (
     audio,
     gainNode,
     duration = AUDIO_TRANSITION_SECONDS.pause,
+    { holdSeconds = duration } = {},
   ) => {
     if (!audio || audio.paused) return;
+    const hold = Math.max(0, Math.min(holdSeconds, duration));
     const context = audioContextRef.current;
     if (!gainNode || !context) {
       const restoreVolume = audio.volume;
-      await fadeElementVolume(audio, 0, duration);
-      audio.pause();
-      audio.volume = restoreVolume;
+      const tail = fadeElementVolume(audio, 0, duration).then(() => {
+        audio.pause();
+        audio.volume = restoreVolume;
+      });
+      if (hold >= duration) await tail;
+      else await new Promise(resolve => window.setTimeout(resolve, hold * 1000));
       return;
     }
     const waitMs = scheduleGainEnvelope(gainNode.gain, {
@@ -588,8 +673,12 @@ function App() {
       target: 0,
       duration,
     });
-    await new Promise(resolve => window.setTimeout(resolve, waitMs + 8));
-    audio.pause();
+    const tail = new Promise(resolve => window.setTimeout(() => {
+      audio.pause();
+      resolve();
+    }, waitMs + 8));
+    if (hold >= duration) await tail;
+    else await new Promise(resolve => window.setTimeout(resolve, hold * 1000));
   };
 
   const seekClicklessly = ({ audio, gainNode, value, restoreTo, timeoutKey, index = null }) => {
@@ -677,7 +766,7 @@ function App() {
         if (audio && !perfSourceNodeRefs.current[i]) {
           try {
             const source = ctx.createMediaElementSource(audio);
-            source.connect(perfGainNodeRefs.current[i]);
+            source.connect(ensurePerformanceGain(i));
             perfSourceNodeRefs.current[i] = source;
           } catch (error) {
             console.warn(`Performance ${i + 1} audio connection will retry on play:`, error);
@@ -818,11 +907,53 @@ function App() {
     if (!anyPlaying) return undefined;
 
     progressIntervalRef.current = setInterval(() => {
+      // A track that simply runs out stops at full level, which reads as a cut.
+      // Ride the last seconds down so a natural ending sounds like every other
+      // transition, and undo it if the operator scrubs back into the track.
+      const liveIndex = playbackStateRef.current.currentPerformance;
+      const liveAudio = liveIndex === null ? null : perfAudioRefs.current[liveIndex];
+      if (liveAudio && !liveAudio.paused && perfPlaying[liveIndex]) {
+        const gainNode = routedPerfGain(liveIndex);
+        const context = audioContextRef.current;
+        const decision = endFadeDecision({
+          duration: liveAudio.duration,
+          currentTime: liveAudio.currentTime,
+          fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut,
+          started: Boolean(endFadeStartedRef.current[liveIndex]),
+          isSeeking: performanceSeekingRef.current[liveIndex],
+        });
+        if (decision === 'fade') {
+          endFadeStartedRef.current[liveIndex] = true;
+          returnBackgroundRef.current();
+          const duration = Math.max(0.05, liveAudio.duration - liveAudio.currentTime);
+          if (gainNode && context) {
+            scheduleGainEnvelope(gainNode.gain, {
+              currentTime: context.currentTime,
+              target: 0,
+              duration,
+            });
+          } else {
+            fadeElementVolume(liveAudio, 0, duration);
+          }
+        } else if (decision === 'cancel') {
+          endFadeStartedRef.current[liveIndex] = false;
+          if (gainNode && context) {
+            fadeGainTo(gainNode, perfVolumesRef.current[liveIndex], AUDIO_TRANSITION_SECONDS.seek);
+          } else {
+            liveAudio.volume = perfVolumesRef.current[liveIndex];
+          }
+        }
+      }
       setPerfProgress(prev => {
         let changed = false;
         const next = prev.map((value, index) => {
           const audio = perfAudioRefs.current[index];
-          if (audio && perfPlaying[index] && Math.abs(audio.currentTime - value) > 0.05) {
+          if (audio && shouldSyncPlaybackProgress({
+            isPlaying: perfPlaying[index],
+            isSeeking: performanceSeekingRef.current[index],
+            audioTime: audio.currentTime,
+            renderedTime: value,
+          })) {
             changed = true;
             return audio.currentTime;
           }
@@ -864,10 +995,17 @@ function App() {
         perfGainNodeRefs.current = performanceArray(null, performanceCount);
         perfSourceNodeRefs.current = performanceArray(null, performanceCount);
         seekTimeoutRefs.current.perf = performanceArray(null, performanceCount);
-        if (Number.isFinite(saved.bgVolume)) setBgVolume(saved.bgVolume);
-        setPerfVolumes(Array.from({ length: performanceCount }, (_, index) => (
+        performanceSeekingRef.current = performanceArray(false, performanceCount);
+        performanceSeekReleaseRefs.current = performanceArray(null, performanceCount);
+        if (Number.isFinite(saved.bgVolume)) {
+          bgVolumeRef.current = saved.bgVolume;
+          setBgVolume(saved.bgVolume);
+        }
+        const restoredVolumes = Array.from({ length: performanceCount }, (_, index) => (
           Number.isFinite(saved.perfVolumes?.[index]) ? saved.perfVolumes[index] : 0.8
-        )));
+        ));
+        perfVolumesRef.current = restoredVolumes;
+        setPerfVolumes(restoredVolumes);
       } catch (error) {
         console.warn('Saved show setup could not be restored:', error);
       } finally {
@@ -1157,6 +1295,7 @@ function App() {
     if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
     if (seekTimeoutRefs.current.bg) window.clearTimeout(seekTimeoutRefs.current.bg);
     seekTimeoutRefs.current.perf.forEach(timer => timer && window.clearTimeout(timer));
+    performanceSeekReleaseRefs.current.forEach(timer => timer && window.clearTimeout(timer));
 
     bgAudioRef.current?.pause();
     perfAudioRefs.current.forEach(audio => audio?.pause());
@@ -1216,7 +1355,7 @@ function App() {
     if (index === bgIndex && bgPlaying) {
       await pauseClicklessly(
         bgAudioRef.current,
-        bgGainNodeRef.current,
+        routedBgGain(),
         AUDIO_TRANSITION_SECONDS.handoffOut,
       );
     }
@@ -1253,6 +1392,7 @@ function App() {
     const audio = bgAudioRef.current;
     if (!bgTrack || !bgTrackSource || !audio || currentPerformance !== null) return false;
 
+    clearBackgroundTail();
     const ready = await ensureAudioReady();
     if (!ready) {
       setShowError('DreamLIVE audio is paused by the device. Tap Play again.');
@@ -1270,9 +1410,10 @@ function App() {
       }
     }
 
-    if (bgGainNodeRef.current) {
+    const bgGain = routedBgGain();
+    if (bgGain) {
       audio.volume = 1;
-      muteGain(bgGainNodeRef.current);
+      muteGain(bgGain);
     } else {
       audio.volume = 0;
     }
@@ -1280,9 +1421,9 @@ function App() {
     if (ok) {
       setBgPlaying(true);
       setShowError('');
-      fadeGainTo(bgGainNodeRef.current, bgVolume, START_FADE);
-      if (!bgGainNodeRef.current) {
-        await fadeElementVolume(audio, bgVolume, START_FADE);
+      fadeGainTo(bgGain, bgVolumeRef.current, START_FADE);
+      if (!bgGain) {
+        await fadeElementVolume(audio, bgVolumeRef.current, START_FADE);
       }
     } else {
       setShowError(`${trackName(bgTrack)} couldn’t start. Tap Play again or choose another track.`);
@@ -1296,7 +1437,7 @@ function App() {
     if (!bgTrack || !bgAudioRef.current || isFading) return;
     if (currentPerformance !== null) return;
     if (bgPlaying) {
-      await pauseClicklessly(bgAudioRef.current, bgGainNodeRef.current);
+      await pauseClicklessly(bgAudioRef.current, routedBgGain());
       setBgPlaying(false);
       return;
     }
@@ -1314,16 +1455,16 @@ function App() {
     });
     if (next === null) {
       if (event?.type !== 'ended') {
-        await pauseClicklessly(bgAudioRef.current, bgGainNodeRef.current);
+        await pauseClicklessly(bgAudioRef.current, routedBgGain());
       }
       setBgPlaying(false);
       return;
     }
 
     if (event?.type === 'ended') {
-      muteGain(bgGainNodeRef.current);
+      muteGain(routedBgGain());
     } else {
-      await pauseClicklessly(bgAudioRef.current, bgGainNodeRef.current);
+      await pauseClicklessly(bgAudioRef.current, routedBgGain());
     }
     if (next === bgIndex) {
       bgAudioRef.current.currentTime = 0;
@@ -1346,7 +1487,7 @@ function App() {
     }
     await pauseClicklessly(
       bgAudioRef.current,
-      bgGainNodeRef.current,
+      routedBgGain(),
       AUDIO_TRANSITION_SECONDS.handoffOut,
     );
     setBgPlaying(true);
@@ -1356,6 +1497,15 @@ function App() {
   const queueBackgroundForReturn = index => {
     const track = bgPlaylist[index];
     if (!track || currentPerformance === null) return;
+    const promoted = queuePlaylistItemNext({
+      playlist: bgPlaylist,
+      index,
+      currentIndex: bgIndex,
+    });
+    if (promoted.changed) {
+      setBgPlaylist(promoted.playlist);
+      setBgIndex(promoted.currentIndex);
+    }
     pendingBgTrackRef.current = track;
     setPendingBgTrack(track);
     setLoopCurrentTrack(false);
@@ -1370,30 +1520,57 @@ function App() {
     }
   }, [bgTrack, bgTrackSource]);
 
-  const handleBgVolumeChange = (e) => {
-    const newVolume = parseFloat(e.target.value);
-    setBgVolume(newVolume);
-    if (bgGainNodeRef.current) {
-      bgGainNodeRef.current.gain.value = newVolume;
+  const previewBgVolume = value => {
+    const newVolume = Number.parseFloat(value);
+    bgVolumeRef.current = newVolume;
+    const bgGain = routedBgGain();
+    if (bgGain) {
+      const context = audioContextRef.current;
+      if (context) {
+        setGainImmediately(bgGain.gain, {
+          currentTime: context.currentTime,
+          target: newVolume,
+        });
+      } else {
+        bgGain.gain.value = newVolume;
+      }
       if (bgAudioRef.current) bgAudioRef.current.volume = 1;
     } else if (bgAudioRef.current) {
       bgAudioRef.current.volume = newVolume;
     }
   };
 
-  // Performance volume control
-  const handlePerfVolumeChange = (index, value) => {
-    const newVolume = parseFloat(value);
-    setPerfVolumes(previous => previous.map((volume, trackIndex) => (
-      trackIndex === index ? newVolume : volume
-    )));
+  const commitBgVolume = value => {
+    previewBgVolume(value);
+    setBgVolume(Number.parseFloat(value));
+  };
 
-    if (perfGainNodeRefs.current[index]) {
-      perfGainNodeRefs.current[index].gain.value = newVolume;
+  // Performance volume control
+  const previewPerfVolume = (index, value) => {
+    const newVolume = Number.parseFloat(value);
+    perfVolumesRef.current[index] = newVolume;
+    const perfGain = routedPerfGain(index);
+    if (perfGain) {
+      const context = audioContextRef.current;
+      if (context) {
+        setGainImmediately(perfGain.gain, {
+          currentTime: context.currentTime,
+          target: newVolume,
+        });
+      } else {
+        perfGain.gain.value = newVolume;
+      }
       if (perfAudioRefs.current[index]) perfAudioRefs.current[index].volume = 1;
     } else if (perfAudioRefs.current[index]) {
       perfAudioRefs.current[index].volume = newVolume;
     }
+  };
+
+  const commitPerfVolume = (index, value) => {
+    previewPerfVolume(index, value);
+    setPerfVolumes(previous => previous.map((volume, trackIndex) => (
+      trackIndex === index ? Number.parseFloat(value) : volume
+    )));
   };
 
   const cancelFade = () => {
@@ -1417,16 +1594,27 @@ function App() {
     }, milliseconds);
   });
 
+  const clearBackgroundTail = () => {
+    if (bgTailTimeoutRef.current) {
+      window.clearTimeout(bgTailTimeoutRef.current);
+      bgTailTimeoutRef.current = null;
+    }
+  };
+
   const fadeOutBackground = async () => {
     if (!bgAudioRef.current || !bgPlaying) return;
     setIsFading(true);
+    clearBackgroundTail();
     const audio = bgAudioRef.current;
-    await pauseClicklessly(
-      audio,
-      bgGainNodeRef.current,
-      AUDIO_TRANSITION_SECONDS.handoffOut,
-    );
-    muteGain(bgGainNodeRef.current);
+    const gainNode = routedBgGain();
+    const duration = AUDIO_TRANSITION_SECONDS.handoffOut;
+    const lead = handoffLeadSeconds({ out: duration });
+    await pauseClicklessly(audio, gainNode, duration, { holdSeconds: lead });
+    // The room still hears the tail; only silence the node once it is spent.
+    bgTailTimeoutRef.current = window.setTimeout(() => {
+      bgTailTimeoutRef.current = null;
+      muteGain(gainNode);
+    }, Math.max(0, (duration - lead) * 1000) + 24);
     setBgPlaying(false);
     setIsFading(false);
   };
@@ -1434,6 +1622,7 @@ function App() {
   const fadeInBackground = async () => {
     if (!bgAudioRef.current || !bgTrack) return;
     setIsFading(true);
+    clearBackgroundTail();
     const pendingIndex = bgPlaylist.indexOf(pendingBgTrackRef.current);
     if (pendingIndex >= 0 && pendingIndex !== bgIndex) {
       pendingBgTrackRef.current = '';
@@ -1449,13 +1638,14 @@ function App() {
     const ready = await ensureAudioReady();
     if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Play in BGM again.');
 
-    if (bgGainNodeRef.current && audioContextRef.current) {
+    const returningGain = routedBgGain();
+    if (returningGain && audioContextRef.current) {
       audio.volume = 1;
-      muteGain(bgGainNodeRef.current);
+      muteGain(returningGain);
       const ok = await playSafely(audio, 'background music');
       if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
       setBgPlaying(true);
-      fadeGainTo(bgGainNodeRef.current, bgVolume, AUDIO_TRANSITION_SECONDS.handoffIn);
+      fadeGainTo(returningGain, bgVolumeRef.current, AUDIO_TRANSITION_SECONDS.handoffIn);
       const completed = await waitForFade((AUDIO_TRANSITION_SECONDS.handoffIn * 1000) + 8);
       if (!completed) throw new Error('Transition cancelled.');
     } else {
@@ -1463,10 +1653,20 @@ function App() {
       const ok = await playSafely(audio, 'background music');
       if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
       setBgPlaying(true);
-      await fadeElementVolume(audio, bgVolume, AUDIO_TRANSITION_SECONDS.handoffIn);
+      await fadeElementVolume(audio, bgVolumeRef.current, AUDIO_TRANSITION_SECONDS.handoffIn);
     }
     setIsFading(false);
   };
+
+  // The room comes back UNDER the outgoing tail, not after it. Both endings -
+  // finishing early and a track running out - call this, and it only ever runs
+  // once per performance, so the later `ended` event cannot restart the fade.
+  const returnBackground = async () => {
+    if (bgReturnStartedRef.current) return;
+    bgReturnStartedRef.current = true;
+    await fadeInBackground();
+  };
+  returnBackgroundRef.current = returnBackground;
 
   const playPerformanceTrack = async (index) => {
     setCurrentPerformance(index);
@@ -1483,8 +1683,9 @@ function App() {
       }
     }
 
-    const perfGain = ensurePerformanceGain(index);
-    const target = perfVolumes[index];
+    ensurePerformanceGain(index);
+    const perfGain = routedPerfGain(index);
+    const target = perfVolumesRef.current[index];
     audio.currentTime = 0;
     audio.volume = perfGain ? 1 : 0;
     muteGain(perfGain);
@@ -1493,13 +1694,15 @@ function App() {
     const ok = await playSafely(audio, `Performance ${index + 1}`);
     if (!ok) throw new Error(`Performance ${index + 1} couldn’t start. Check the track, then try again.`);
 
-    fadeGainTo(perfGain, target, START_FADE);
-    if (!perfGain) {
-      await fadeElementVolume(audio, target, START_FADE);
-    }
+    // The stage is live the moment the track starts. Awaiting the fade here
+    // held the visualizer and the live controls back for the whole fade length.
     setPerfPlaying(previous => previous.map((playing, trackIndex) => (
       trackIndex === index ? true : playing
     )));
+    fadeGainTo(perfGain, target, START_FADE);
+    if (!perfGain) {
+      void fadeElementVolume(audio, target, START_FADE);
+    }
   };
 
   // Start performance through one ordered, test-covered show flow.
@@ -1507,6 +1710,8 @@ function App() {
     if (!trackSource(perfTracks[index]) || currentPerformance !== null || isFading || transitionLockRef.current) return;
     transitionLockRef.current = true;
     setShowError('');
+    endFadeStartedRef.current[index] = false;
+    bgReturnStartedRef.current = false;
     setCurrentPerformance(index);
     setPerformanceStatus(previous => previous.map((done, trackIndex) => (
       trackIndex === index ? false : done
@@ -1515,7 +1720,7 @@ function App() {
       await startPerformanceFlow({
         lowerBackground: fadeOutBackground,
         playPerformance: () => playPerformanceTrack(index),
-        restoreBackground: fadeInBackground,
+        restoreBackground: returnBackground,
         onPhase: setShowPhase,
       });
       setLineupCommitted(true);
@@ -1545,7 +1750,7 @@ function App() {
     if (!audio) return;
 
     if (perfPlaying[index]) {
-      await pauseClicklessly(audio, perfGainNodeRefs.current[index]);
+      await pauseClicklessly(audio, routedPerfGain(index));
       setPerfPlaying(previous => previous.map((playing, trackIndex) => (
         trackIndex === index ? false : playing
       )));
@@ -1554,27 +1759,30 @@ function App() {
     }
 
     // A resumed context can repeat the warm-up, so mute then fade here too.
-    const perfGain = ensurePerformanceGain(index);
+    endFadeStartedRef.current[index] = false;
+    ensurePerformanceGain(index);
+    const perfGain = routedPerfGain(index);
     await ensureAudioReady();
     muteGain(perfGain);
     if (!perfGain) audio.volume = 0;
     const ok = await playSafely(audio, `Performance ${index + 1}`);
     if (ok) {
-      fadeGainTo(perfGain, perfVolumes[index], RESUME_FADE);
-      if (!perfGain) {
-        await fadeElementVolume(audio, perfVolumes[index], RESUME_FADE);
-      }
       setPerfPlaying(previous => previous.map((playing, trackIndex) => (
         trackIndex === index ? true : playing
       )));
+      fadeGainTo(perfGain, perfVolumesRef.current[index], RESUME_FADE);
+      if (!perfGain) {
+        void fadeElementVolume(audio, perfVolumesRef.current[index], RESUME_FADE);
+      }
       setShowPhase(SHOW_PHASE.LIVE);
     } else if (perfGain) {
-      fadeGainTo(perfGain, perfVolumes[index], 0);
+      fadeGainTo(perfGain, perfVolumesRef.current[index], 0);
     }
   };
 
   // Handle performance end
   const handlePerformanceEnd = async (index) => {
+    endFadeStartedRef.current[index] = false;
     setPerfPlaying(previous => previous.map((playing, trackIndex) => (
       trackIndex === index ? false : playing
     )));
@@ -1585,8 +1793,10 @@ function App() {
     });
     setPerformanceStatus(completion.completed);
     if (completion.cycleComplete) {
-      perfAudioRefs.current.forEach(audio => {
-        if (audio) audio.currentTime = 0;
+      perfAudioRefs.current.forEach((audio, trackIndex) => {
+        if (!audio) return;
+        if (trackIndex === index && !audio.paused) return;
+        audio.currentTime = 0;
       });
       setPerfPlaying(performanceArray(false, perfTracks.length));
       setBgQueueExpanded(false);
@@ -1596,7 +1806,7 @@ function App() {
     setSelectedPerformanceIndex(null);
     try {
       await finishPerformanceFlow({
-        restoreBackground: fadeInBackground,
+        restoreBackground: returnBackground,
         onPhase: setShowPhase,
       });
     } catch (error) {
@@ -1610,7 +1820,16 @@ function App() {
     if (currentPerformance !== index || transitionLockRef.current) return;
     transitionLockRef.current = true;
     try {
-      await pauseClicklessly(perfAudioRefs.current[index], perfGainNodeRefs.current[index]);
+      // Ending a performance early is a handoff, not a stop button: it gets the
+      // same long fade the room hears when a track runs to its end.
+      setIsFading(true);
+      await pauseClicklessly(
+        perfAudioRefs.current[index],
+        routedPerfGain(index),
+        AUDIO_TRANSITION_SECONDS.handoffOut,
+        { holdSeconds: handoffLeadSeconds() },
+      );
+      setIsFading(false);
       setPerfProgress(previous => previous.map((progress, trackIndex) => (
         trackIndex === index ? (perfDurations[index] || progress) : progress
       )));
@@ -1637,9 +1856,9 @@ function App() {
       const time = parseFloat(value);
       seekClicklessly({
         audio,
-        gainNode: perfGainNodeRefs.current[index],
+        gainNode: routedPerfGain(index),
         value: time,
-        restoreTo: perfVolumes[index],
+        restoreTo: perfVolumesRef.current[index],
         timeoutKey: 'perf',
         index,
       });
@@ -1649,15 +1868,36 @@ function App() {
     }
   };
 
+  const beginPerformanceSeek = index => {
+    performanceSeekingRef.current[index] = true;
+    const releaseTimer = performanceSeekReleaseRefs.current[index];
+    if (releaseTimer) window.clearTimeout(releaseTimer);
+  };
+
+  const finishPerformanceSeek = index => {
+    const releaseTimer = performanceSeekReleaseRefs.current[index];
+    if (releaseTimer) window.clearTimeout(releaseTimer);
+    performanceSeekReleaseRefs.current[index] = window.setTimeout(() => {
+      performanceSeekingRef.current[index] = false;
+      performanceSeekReleaseRefs.current[index] = null;
+    }, (CLICKLESS_MUTE_SECONDS * 1000) + 32);
+  };
+
   const clearPerformanceCues = async () => {
     await Promise.all(perfAudioRefs.current.map((audio, index) => (
-      pauseClicklessly(audio, perfGainNodeRefs.current[index])
+      pauseClicklessly(audio, routedPerfGain(index))
     )));
     perfAudioRefs.current.forEach(audio => {
       if (audio) audio.currentTime = 0;
     });
+    perfSourceNodeRefs.current.slice(DEFAULT_PERFORMANCE_COUNT).forEach(source => source?.disconnect());
+    perfGainNodeRefs.current.slice(DEFAULT_PERFORMANCE_COUNT).forEach(gain => gain?.disconnect());
+    perfAudioRefs.current = perfAudioRefs.current.slice(0, DEFAULT_PERFORMANCE_COUNT);
+    perfGainNodeRefs.current = perfGainNodeRefs.current.slice(0, DEFAULT_PERFORMANCE_COUNT);
+    perfSourceNodeRefs.current = perfSourceNodeRefs.current.slice(0, DEFAULT_PERFORMANCE_COUNT);
     setPerfTracks(performanceArray(''));
     setPerfPlaying(performanceArray(false));
+    perfVolumesRef.current = performanceArray(0.8);
     setPerfVolumes(performanceArray(0.8));
     setPerfProgress(performanceArray(0));
     setPerfDurations(performanceArray(0));
@@ -1665,10 +1905,13 @@ function App() {
     setPerformanceOrder(performanceArray(null).map((_, index) => index));
     setDraftPerformanceIndex(null);
     setLineupCommitted(false);
-    perfAudioRefs.current = performanceArray(null);
-    perfGainNodeRefs.current = performanceArray(null);
-    perfSourceNodeRefs.current = performanceArray(null);
+    // Keep each MediaElementSourceNode paired with its mounted <audio> element.
+    // Recreating a source for a reused media element throws and can leave the
+    // newly assigned track connected to a muted, abandoned gain node.
     seekTimeoutRefs.current.perf = performanceArray(null);
+    performanceSeekingRef.current = performanceArray(false);
+    performanceSeekReleaseRefs.current.forEach(timer => timer && window.clearTimeout(timer));
+    performanceSeekReleaseRefs.current = performanceArray(null);
     setCurrentPerformance(null);
     setSelectedPerformanceIndex(null);
     setShowPhase(SHOW_PHASE.SETUP);
@@ -1680,6 +1923,7 @@ function App() {
     const newIndex = perfTracks.length;
     setPerfTracks(previous => [...previous, '']);
     setPerfPlaying(previous => [...previous, false]);
+    perfVolumesRef.current.push(0.8);
     setPerfVolumes(previous => [...previous, 0.8]);
     setPerfProgress(previous => [...previous, 0]);
     setPerfDurations(previous => [...previous, 0]);
@@ -1689,6 +1933,8 @@ function App() {
     perfGainNodeRefs.current.push(null);
     perfSourceNodeRefs.current.push(null);
     seekTimeoutRefs.current.perf.push(null);
+    performanceSeekingRef.current.push(false);
+    performanceSeekReleaseRefs.current.push(null);
     setDraftPerformanceIndex(newIndex);
     showNotice('Performance added.');
   };
@@ -1716,7 +1962,7 @@ function App() {
     const shouldRestoreBackground = currentPerformance !== null && Boolean(bgTrack);
     try {
       await Promise.all(perfAudioRefs.current.map((audio, index) => (
-        pauseClicklessly(audio, perfGainNodeRefs.current[index])
+        pauseClicklessly(audio, routedPerfGain(index))
       )));
       perfAudioRefs.current.forEach(audio => {
         if (audio) audio.currentTime = 0;
@@ -1758,7 +2004,7 @@ function App() {
       if (removed.has(bgTrack) && bgPlaying) {
         await pauseClicklessly(
           bgAudioRef.current,
-          bgGainNodeRef.current,
+          routedBgGain(),
           AUDIO_TRANSITION_SECONDS.handoffOut,
         );
       }
@@ -1993,7 +2239,7 @@ function App() {
         </div>
       ) : (
         <>
-          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''} ${bgPlaying && currentPerformance === null ? 'is-bgm-active' : ''} ${bgQueueExpanded ? 'is-bgm-expanded' : ''} ${currentPerformance !== null && (perfPlaying[currentPerformance] || isFading) ? 'is-visualizing' : ''}`}>
+          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${audioFiles.length === 0 ? 'is-library-empty' : ''} ${currentPerformance !== null ? 'is-live' : ''} ${bgPlaying && currentPerformance === null ? 'is-bgm-active' : ''} ${bgQueueExpanded ? 'is-bgm-expanded' : ''} ${currentPerformance !== null && (perfPlaying[currentPerformance] || isFading) ? 'is-visualizing' : ''}`}>
             <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''} ${currentPerformance !== null || isFading ? 'is-held' : ''} ${bgQueueExpanded ? 'queue-expanded' : 'queue-collapsed'}`}>
               <div className="section-header">
                 {runDeck && isPortraitLayout ? (
@@ -2020,16 +2266,12 @@ function App() {
                       <span>{Math.round(bgVolume * 100)}%</span>
                     </summary>
                     <label className="bgm-level-control">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
+                      <StableVolumeSlider
                         value={bgVolume}
-                        onChange={handleBgVolumeChange}
-                        aria-label="BGM volume"
+                        ariaLabel="BGM volume"
+                        onPreview={previewBgVolume}
+                        onCommit={commitBgVolume}
                       />
-                      <strong>{Math.round(bgVolume * 100)}%</strong>
                     </label>
                   </details>
                 </div>
@@ -2038,12 +2280,9 @@ function App() {
                 <div className="library-inline-state">
                   <FolderOpen size={20} />
                   <div>
-                    <strong>No tracks on this device ・ 音源がありません</strong>
-                    <span>Import licensed audio to build the show.</span>
+                    <strong>Waiting for your soundtrack</strong>
+                    <span>Imported audio becomes your BGM queue.</span>
                   </div>
-                  <button type="button" onClick={() => handleSelectFolder({ autoQueue: true })} disabled={importState.active}>
-                    {importState.active ? `Checking ${importState.completed}/${importState.total}` : 'Import & queue'}
-                  </button>
                 </div>
               )}
               <div id="dreamlive-bgm-queue" className="bg-music-container">
@@ -2093,7 +2332,32 @@ function App() {
               </div>
             </section>
 
-            <section className={`performances-section ${currentPerformance !== null ? 'is-stage-active' : ''}`}>
+            <section className={`performances-section ${currentPerformance !== null ? 'is-stage-active' : ''} ${audioFiles.length === 0 ? 'is-library-empty' : ''}`}>
+              {audioFiles.length === 0 && (
+                <div className="dreamlive-empty-stage">
+                  <SakuraDrift />
+                  <div className="empty-stage-copy">
+                    <span className="empty-stage-kicker">
+                      DREAMLIVE READY <span className="japanese-label">開演準備</span>
+                    </span>
+                    <h2>Let the show begin.</h2>
+                    <p>Bring in your licensed tracks, then shape the room soundtrack and performance lineup in one effortless flow.</p>
+                    <button
+                      type="button"
+                      className="empty-stage-import"
+                      onClick={() => handleSelectFolder({ autoQueue: true })}
+                      disabled={importState.active}
+                    >
+                      <FolderOpen size={17} />
+                      <span>{importState.active ? `Checking ${importState.completed}/${importState.total}` : 'Import audio'}</span>
+                    </button>
+                  </div>
+                  <div className="empty-stage-spectrum" aria-hidden="true" />
+                  <div className="empty-stage-flow" aria-hidden="true">
+                    <span>BGM</span><i /><span>PERFORMANCE</span><i /><span>SHOWTIME</span>
+                  </div>
+                </div>
+              )}
               <div className="section-header">
                 <div>
                   <h2 className="section-title">Performances ・ パフォーマンス</h2>
@@ -2120,12 +2384,12 @@ function App() {
                     <p>DreamLIVE is complete.</p>
                     <button
                       type="button"
-                      className="run-primary-action complete-clear-lineup-button"
-                      onClick={openResetConfirmation}
+                      className="run-primary-action complete-restart-button"
+                      onClick={restartDreamLive}
                       disabled={isFading}
                     >
-                      <Trash2 size={15} />
-                      <span>Clear lineup</span>
+                      <RotateCcw size={15} />
+                      <span>Restart Dream Live</span>
                     </button>
                   </div>
                 ) : deckState.mode === 'live' && focusPerformanceIndex !== null ? (
@@ -2139,7 +2403,7 @@ function App() {
                               ? <>Paused <span className="japanese-label">ポーズ中</span></>
                               : <>Now Performing <span className="japanese-label">パフォーマンス中</span></>)}
                         </span>
-                        <h2>{trackName(perfTracks[focusPerformanceIndex])}</h2>
+                        <h2 title={trackName(perfTracks[focusPerformanceIndex])}>{trackName(perfTracks[focusPerformanceIndex])}</h2>
                       </div>
                     </div>
                     <div className="run-action-row">
@@ -2155,24 +2419,24 @@ function App() {
                       </button>
                       <button
                         type="button"
-                        className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : ''}`}
+                        className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : 'is-resume'}`}
                         onClick={() => togglePerfPause(focusPerformanceIndex)}
                         disabled={isFading}
                         aria-label={perfPlaying[focusPerformanceIndex] ? 'Pause performance' : 'Resume performance'}
                         title={perfPlaying[focusPerformanceIndex] ? 'Pause' : 'Resume'}
                       >
                         {perfPlaying[focusPerformanceIndex] ? <Pause size={18} /> : <Play size={18} />}
-                        {!perfPlaying[focusPerformanceIndex] && <span>Resume</span>}
+                        <span>{perfPlaying[focusPerformanceIndex] ? 'Pause Performance' : 'Resume Performance'}</span>
                       </button>
                       <button
                         type="button"
                         className="control-button run-end-button"
                         onClick={() => endPerformance(focusPerformanceIndex)}
                         disabled={isFading}
-                        aria-label="End performance"
+                        aria-label="Finish performance"
                       >
                         <Square size={14} fill="currentColor" />
-                        <span>End</span>
+                        <span>Finish</span>
                       </button>
                       <details className="run-level-menu">
                         <summary aria-label={`Performance level ${Math.round(perfVolumes[focusPerformanceIndex] * 100)} percent`}>
@@ -2180,16 +2444,12 @@ function App() {
                           <span>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</span>
                         </summary>
                         <label className="run-level-control">
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.01"
+                          <StableVolumeSlider
                             value={perfVolumes[focusPerformanceIndex]}
-                            onChange={event => handlePerfVolumeChange(focusPerformanceIndex, event.target.value)}
-                            aria-label="Live performance volume"
+                            ariaLabel="Live performance volume"
+                            onPreview={value => previewPerfVolume(focusPerformanceIndex, value)}
+                            onCommit={value => commitPerfVolume(focusPerformanceIndex, value)}
                           />
-                          <strong>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</strong>
                         </label>
                       </details>
                     </div>
@@ -2201,7 +2461,13 @@ function App() {
                         max={perfDurations[focusPerformanceIndex] || 1}
                         step="0.1"
                         value={perfProgress[focusPerformanceIndex]}
+                        onPointerDown={() => beginPerformanceSeek(focusPerformanceIndex)}
                         onChange={event => handleSeek(focusPerformanceIndex, event.target.value)}
+                        onPointerUp={() => finishPerformanceSeek(focusPerformanceIndex)}
+                        onPointerCancel={() => finishPerformanceSeek(focusPerformanceIndex)}
+                        onKeyDown={() => beginPerformanceSeek(focusPerformanceIndex)}
+                        onKeyUp={() => finishPerformanceSeek(focusPerformanceIndex)}
+                        onBlur={() => finishPerformanceSeek(focusPerformanceIndex)}
                         disabled={!perfDurations[focusPerformanceIndex]}
                         aria-label={`Seek performance ${focusPerformanceIndex + 1}`}
                       />
@@ -2223,7 +2489,7 @@ function App() {
                     <div className="run-focus-heading ready-heading">
                       <div>
                         <span className="run-focus-kicker">Next on stage <span className="japanese-label">ネクストステージ</span></span>
-                        <h2>{trackName(perfTracks[focusPerformanceIndex])}</h2>
+                        <h2 title={trackName(perfTracks[focusPerformanceIndex])}>{trackName(perfTracks[focusPerformanceIndex])}</h2>
                       </div>
                     </div>
                     <div className="run-action-row">
@@ -2234,7 +2500,7 @@ function App() {
                         disabled={isFading || !trackSource(perfTracks[focusPerformanceIndex])}
                       >
                         <Play size={18} />
-                        <span>Start</span>
+                        <span>Start Performance!</span>
                       </button>
                       <details className="run-level-menu">
                         <summary aria-label={`Performance level ${Math.round(perfVolumes[focusPerformanceIndex] * 100)} percent`}>
@@ -2242,16 +2508,12 @@ function App() {
                           <span>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</span>
                         </summary>
                         <label className="run-level-control">
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.01"
+                          <StableVolumeSlider
                             value={perfVolumes[focusPerformanceIndex]}
-                            onChange={event => handlePerfVolumeChange(focusPerformanceIndex, event.target.value)}
-                            aria-label="Next performance volume"
+                            ariaLabel="Next performance volume"
+                            onPreview={value => previewPerfVolume(focusPerformanceIndex, value)}
+                            onCommit={value => commitPerfVolume(focusPerformanceIndex, value)}
                           />
-                          <strong>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</strong>
                         </label>
                       </details>
                     </div>
@@ -2290,7 +2552,7 @@ function App() {
                       title="Reset every performance to the beginning"
                     >
                       <RotateCcw size={14} />
-                      <span>Restart DreamLIVE</span>
+                      <span>Restart Dream Live</span>
                     </button>
                   )}
                   {!dreamLiveComplete && (

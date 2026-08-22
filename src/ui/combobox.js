@@ -26,8 +26,12 @@ export function getPopoverPosition({
   const top = placement === 'top'
     ? Math.max(gutter, rect.top - gap - maxHeight)
     : rect.bottom + gap;
+  // A menu placed above is anchored by its BOTTOM edge. Anchoring by `top`
+  // assumes the menu is exactly `maxHeight` tall, so a short menu - the two-item
+  // row actions - floats hundreds of pixels above the control it belongs to.
+  const bottom = Math.max(gutter, viewportHeight - rect.top + gap);
 
-  return { top, left, width, maxHeight, placement };
+  return { top, bottom, left, width, maxHeight, placement };
 }
 
 export function nextOptionIndex(current, key, length) {
