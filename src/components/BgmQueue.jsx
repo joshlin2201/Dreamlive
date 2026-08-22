@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Check, GripVertical, ListPlus, MoreVertical, Pause, Play, Shuffle, Trash2 } from 'lucide-react';
 import { playlistDisplayOrder, queueDisplacement } from '../audio/playlist';
 
-function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, playbackLocked, queueOnly = false, playing, showPlayback = true, trackName, onPlay, onQueue, onToggle, onMove, onRemove, onShuffle }) {
+function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, playbackLocked, queueOnly = false, collapsed = false, playing, showPlayback = true, trackName, onPlay, onQueue, onToggle, onMove, onRemove, onShuffle }) {
+  const reduceMotion = useReducedMotion();
   const emptyDrag = () => ({
     from: null,
     to: null,
@@ -26,7 +28,11 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
   const [dropPosition, setDropPosition] = useState(null);
   const [dragGhost, setDragGhost] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
-  const orderedPlaylist = playlistDisplayOrder({ playlist, currentIndex });
+  const orderedPlaylist = playlistDisplayOrder({
+    playlist,
+    currentIndex,
+    maxItems: collapsed ? 1 : null,
+  });
 
   const clearDragTimer = drag => {
     if (drag.activationTimer !== null) window.clearTimeout(drag.activationTimer);
@@ -174,7 +180,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
 
   return (
     <>
-    <div ref={queueRef} className={`bgm-queue ${draggingIndex !== null ? 'is-reordering' : ''}`} aria-label="Background playlist queue">
+    <div ref={queueRef} className={`bgm-queue ${collapsed ? 'is-collapsed' : ''} ${draggingIndex !== null ? 'is-reordering' : ''}`} aria-label="Background playlist queue">
       <div className="bgm-queue-heading">
         <span>Autoplay <span className="japanese-label">オートプレイ</span></span>
         <div className="queue-heading-actions">
@@ -196,16 +202,26 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
           toIndex: dropPosition,
         });
         return (
+          <motion.div
+            className="queue-layout-row"
+            layout="position"
+            transition={{
+              layout: {
+                duration: reduceMotion ? 0 : 0.34,
+                ease: [0.16, 1, 0.3, 1],
+              },
+            }}
+            key={path}
+          >
           <div
             className={`queue-row ${current ? 'is-current' : ''} ${pending ? 'is-pending' : ''} ${locked ? 'is-locked' : ''} ${draggingIndex === index ? 'is-dragging' : ''} ${displacement < 0 ? 'is-displaced-up' : ''} ${displacement > 0 ? 'is-displaced-down' : ''}`}
             data-queue-index={index}
             data-queue-position={position}
-            key={path}
           >
             <button
               type="button"
               className="queue-drag-handle"
-              disabled={locked}
+              disabled={locked || collapsed}
               onPointerDown={event => startDrag(event, index, position)}
               onPointerMove={moveDrag}
               onPointerUp={finishDrag}
@@ -225,21 +241,22 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
               aria-label={`Reorder ${trackName(path)}. Use arrow keys or hold, then drag.`}
             >
               <GripVertical size={15} />
-              <span>{String(position + 1).padStart(2, '0')}</span>
             </button>
             <div className="queue-track-cluster">
-              {showPlayback && !queueOnly && (
+              {showPlayback && (
                 <button
                   type="button"
                   className="queue-playback-button"
                   onClick={() => activateTrack(index)}
-                  disabled={playbackLocked}
-                  aria-label={current && playing
-                    ? `Pause ${trackName(path)}`
-                    : `Play ${trackName(path)} from here`}
-                  title={current && playing ? 'Pause' : 'Play'}
+                  disabled={playbackLocked || (queueOnly && current)}
+                  aria-label={queueOnly
+                    ? (current ? `${trackName(path)} held during performance` : `Queue ${trackName(path)} after performance`)
+                    : (current && playing ? `Pause ${trackName(path)}` : `Play ${trackName(path)} from here`)}
+                  title={queueOnly
+                    ? (current ? 'BGM held during performance' : 'Play after performance')
+                    : (current && playing ? 'Pause' : 'Play')}
                 >
-                  {current && playing
+                  {current && (playing || queueOnly)
                     ? <Pause size={16} fill="currentColor" />
                     : <Play size={16} fill="currentColor" />}
                 </button>
@@ -269,6 +286,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
               </button>
             </div>
           </div>
+          </motion.div>
         );
       })}
     </div>

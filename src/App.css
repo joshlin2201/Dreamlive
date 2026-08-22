@@ -2963,51 +2963,156 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 3px s
 .queue-row::before { display: none !important; content: none !important; }
 .queue-row.is-current,
 .queue-row.is-current.is-locked {
-  border-color: rgba(232, 42, 137, 0.13);
-  background: linear-gradient(105deg, rgba(232, 42, 137, 0.072), rgba(255, 255, 255, 0.18) 58%, rgba(232, 42, 137, 0.025));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38), 0 5px 18px rgba(213, 44, 120, 0.055);
+  border-color: rgba(232, 42, 137, 0.08);
+  background: linear-gradient(100deg, rgba(232, 42, 137, 0.06), rgba(255, 255, 255, 0.12) 62%, rgba(232, 42, 137, 0.018));
+  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.075), 0 5px 18px rgba(184, 23, 97, 0.035);
+}
+
+/* Premium state layer: tonal depth, never a hard perimeter or status rail. */
+.queue-layout-row {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.queue-row.is-current,
+.queue-row.is-current.is-locked,
+.queue-row.is-pending:not(.is-current),
+.show-workspace.run-deck.is-live .background-section .queue-row.is-pending:not(.is-current),
+.performance-card.is-focused:not(.active):not(.completed),
+.performance-card.active,
+.show-workspace.run-deck.is-setup-open .performance-card.active,
+.show-workspace:not(.run-deck) .performance-card.active,
+.library-track-row.is-active,
+.select-option.selected {
+  border-color: transparent;
+  outline: 0;
+}
+
+.queue-row.is-current,
+.queue-row.is-current.is-locked,
+.performance-card.is-focused:not(.active):not(.completed),
+.performance-card.active,
+.show-workspace.run-deck.is-setup-open .performance-card.active,
+.show-workspace:not(.run-deck) .performance-card.active {
+  background: linear-gradient(108deg, rgba(232, 42, 137, 0.062), rgba(255, 255, 255, 0.24) 58%, rgba(255, 231, 241, 0.075));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 7px 19px rgba(160, 56, 101, 0.055),
+    0 1px 4px rgba(160, 56, 101, 0.035);
+}
+
+.queue-row.is-pending:not(.is-current),
+.show-workspace.run-deck.is-live .background-section .queue-row.is-pending:not(.is-current) {
+  background: linear-gradient(108deg, rgba(137, 86, 190, 0.045), rgba(255, 255, 255, 0.2) 62%, rgba(236, 220, 250, 0.055));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.54),
+    0 6px 16px rgba(102, 69, 137, 0.045);
+}
+
+.library-track-row.is-active,
+.select-option.selected {
+  background: linear-gradient(105deg, rgba(232, 42, 137, 0.052), rgba(255, 255, 255, 0.22));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58), 0 5px 14px rgba(160, 56, 101, 0.045);
+}
+
+.queue-row::before,
+.library-track-row.is-active::before,
+.select-option.selected::before {
+  display: none !important;
+  content: none !important;
+}
+
+@media (min-width: 621px) and (max-width: 1180px) and (min-height: 600px) {
+  .show-workspace.run-deck .performances-section.is-stage-active {
+    border-color: transparent;
+    background:
+      radial-gradient(circle at 28% 10%, rgba(255, 255, 255, 0.78), transparent 42%),
+      linear-gradient(142deg, rgba(255, 253, 252, 0.975), rgba(252, 244, 248, 0.925));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.82),
+      inset 0 0 32px rgba(232, 42, 137, 0.025),
+      0 14px 36px rgba(144, 58, 94, 0.075),
+      0 3px 10px rgba(144, 58, 94, 0.045);
+  }
+
+  .show-workspace.run-deck .performances-section.is-stage-active .run-focus-panel {
+    background: linear-gradient(112deg, rgba(232, 42, 137, 0.018), transparent 46%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-layout-row { transition: none !important; }
 }
 .queue-row.is-pending:not(.is-current),
 .show-workspace.run-deck.is-live .background-section .queue-row.is-pending:not(.is-current) {
-  border-color: rgba(135, 91, 183, 0.1);
-  background: linear-gradient(105deg, rgba(135, 91, 183, 0.046), rgba(255, 255, 255, 0.14));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3), 0 3px 12px rgba(98, 66, 132, 0.028);
+  border-color: rgba(135, 91, 183, 0.075);
+  background: linear-gradient(100deg, rgba(135, 91, 183, 0.042), rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(135, 91, 183, 0.06);
   filter: none;
 }
 .performance-card.is-focused:not(.active):not(.completed),
 .performance-card.active,
 .show-workspace.run-deck.is-setup-open .performance-card.active,
 .show-workspace:not(.run-deck) .performance-card.active {
-  background: linear-gradient(105deg, rgba(232, 42, 137, 0.052), rgba(255, 255, 255, 0.15));
-  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.09), 0 4px 14px rgba(213, 44, 120, 0.034);
+  border-color: rgba(232, 42, 137, 0.08);
+  background: linear-gradient(100deg, rgba(232, 42, 137, 0.052), rgba(255, 255, 255, 0.11));
+  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.07), 0 4px 14px rgba(184, 23, 97, 0.03);
 }
 
 /* iPad portrait is the primary operating surface: active audio owns the space. */
 @media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
   .show-workspace,
   .show-workspace.run-deck {
-    grid-template-rows: 292px minmax(0, 1fr);
+    grid-template-rows: 430px minmax(0, 1fr);
   }
   .show-workspace.run-deck.is-bgm-active:not(.is-live) {
-    grid-template-rows: 348px minmax(0, 1fr);
+    grid-template-rows: 430px minmax(0, 1fr);
   }
   .show-workspace.run-deck.is-live {
     grid-template-rows: 50px minmax(0, 1fr);
   }
   .show-workspace.run-deck.is-live.is-bgm-expanded {
-    grid-template-rows: 292px minmax(0, 1fr);
+    grid-template-rows: 430px minmax(0, 1fr);
   }
 
   .show-workspace .background-section,
   .show-workspace.run-deck .background-section {
     gap: 2px;
-    padding: 13px 16px 11px;
+    padding: 10px 12px 9px;
   }
   .show-workspace .background-section .section-header,
   .show-workspace.run-deck .background-section .section-header {
-    min-height: 40px;
+    min-height: 36px;
     margin: 0;
-    padding: 0 0 5px;
+    padding: 0 0 3px;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .show-workspace.run-deck .bgm-header-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 4px;
+    overflow: hidden;
+  }
+  .show-workspace.run-deck .bgm-header-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .show-workspace.run-deck .bgm-header-expand-cue {
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .show-workspace.run-deck .bgm-header-actions {
+    flex: 0 0 auto;
+    margin-left: 0;
   }
   .show-workspace .background-section .section-title,
   .show-workspace.run-deck .background-section .section-title,
@@ -3030,20 +3135,20 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 3px s
   }
 
   .bgm-header-level > summary {
-    min-height: 32px;
-    padding-inline: 7px;
+    min-height: 28px;
+    padding-inline: 4px;
     border-color: transparent;
     border-radius: 9px;
     color: var(--pink-strong);
     background: transparent;
-    box-shadow: inset 0 0 0 1px rgba(213, 44, 120, 0.09), 0 5px 16px rgba(121, 57, 84, 0.045);
+    box-shadow: none;
     backdrop-filter: blur(12px) saturate(1.08);
   }
   .bgm-header-level > summary:hover,
   .bgm-header-level[open] > summary {
     border-color: transparent;
-    background: rgba(255, 255, 255, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(213, 44, 120, 0.14), 0 6px 18px rgba(121, 57, 84, 0.06);
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: none;
   }
 
   .bgm-visualizer-slot.is-active {
@@ -3060,40 +3165,33 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 3px s
   }
   .background-section .bgm-queue { padding: 1px 0 3px; }
   .show-workspace.run-deck .queue-row {
-    grid-template-columns: 54px minmax(0, 1fr) 32px;
+    grid-template-columns: 30px minmax(0, 1fr) 28px;
     min-height: 43px;
     height: 43px;
-    gap: 5px;
-    padding: 2px 3px;
+    gap: 3px;
+    padding: 2px 1px;
     border: 1px solid transparent;
     border-radius: 10px;
   }
   .show-workspace.run-deck .queue-drag-handle {
-    width: 54px;
-    min-width: 54px;
-    height: 36px;
-    min-height: 36px;
-    justify-content: flex-start;
-    gap: 7px;
-    padding: 0 4px;
-  }
-  .show-workspace.run-deck .queue-drag-handle span {
-    min-width: 18px;
-    font-size: 9.5px;
-    text-align: right;
-  }
-  .show-workspace.run-deck .queue-track-cluster { gap: 6px; }
-  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
     width: 30px;
     min-width: 30px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-track-cluster { gap: 3px; }
+  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
+    width: 27px;
+    min-width: 27px;
     height: 30px;
     min-height: 30px;
   }
   .show-workspace.run-deck .queue-track-copy { padding-inline: 1px; }
   .show-workspace.run-deck .queue-track-copy strong { font-size: 11.5px; }
   .show-workspace.run-deck .queue-row-actions button {
-    width: 32px;
-    min-width: 32px;
+    width: 28px;
+    min-width: 28px;
     height: 34px;
     min-height: 34px;
   }
@@ -3120,17 +3218,430 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 3px s
     margin: 3px 10px;
   }
   .show-workspace.run-deck .run-focus-heading h2 {
-    max-width: 94%;
+    max-width: 100%;
     font-size: clamp(26px, 4.7vw, 36px);
     line-height: 1.03;
   }
   .show-workspace.run-deck .run-action-row { margin-top: 9px; }
+  /* Earlier cascade layer; the canonical iPad contract is defined last. */
   .show-workspace.run-deck .run-progress { margin-top: 5px; }
+}
+
+/* Final iPad state language: quiet depth, one baseline, no status rails. */
+.queue-layout-row { width: 100%; min-width: 0; }
+
+.queue-row.is-current,
+.queue-row.is-current.is-locked,
+.queue-row.is-pending:not(.is-current),
+.performance-card.is-focused:not(.active):not(.completed),
+.performance-card.active,
+.show-workspace.run-deck.is-setup-open .performance-card.active,
+.show-workspace:not(.run-deck) .performance-card.active {
+  border-color: transparent;
+  box-shadow: 0 7px 20px rgba(139, 48, 88, 0.055);
+}
+.queue-row.is-current,
+.queue-row.is-current.is-locked,
+.performance-card.active,
+.show-workspace.run-deck.is-setup-open .performance-card.active,
+.show-workspace:not(.run-deck) .performance-card.active {
+  background: linear-gradient(105deg, rgba(232, 42, 137, 0.078), rgba(255, 255, 255, 0.2) 64%, rgba(255, 232, 244, 0.06));
+}
+.queue-row.is-pending:not(.is-current) {
+  background: linear-gradient(105deg, rgba(139, 91, 188, 0.05), rgba(255, 255, 255, 0.16));
+}
+.performance-card.is-focused:not(.active):not(.completed) {
+  background: linear-gradient(105deg, rgba(232, 42, 137, 0.045), rgba(255, 255, 255, 0.12));
+}
+
+.perf-playing-label {
+  min-width: 74px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #17745c;
+  background: rgba(44, 157, 124, 0.075);
+  box-shadow: 0 5px 16px rgba(36, 122, 98, 0.06);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.perf-playing-label > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #269778;
+  box-shadow: 0 0 0 4px rgba(38, 151, 120, 0.09);
+  animation: playing-breathe 1.7s ease-in-out infinite;
+}
+.perf-playing-label.is-paused {
+  color: #8b5f20;
+  background: rgba(217, 158, 54, 0.075);
+  box-shadow: none;
+}
+.perf-playing-label.is-paused > span {
+  background: #b98026;
+  box-shadow: none;
+  animation: none;
+}
+@keyframes playing-breathe {
+  50% { opacity: 0.58; transform: scale(0.82); }
+}
+
+@media (min-width: 621px) and (max-width: 1180px) and (min-height: 600px) {
+  .show-workspace.run-deck .performances-section.is-stage-active {
+    border-color: transparent;
+    background:
+      radial-gradient(circle at 30% 14%, rgba(242, 86, 158, 0.045), transparent 37%),
+      linear-gradient(140deg, rgba(255, 255, 255, 0.97), rgba(253, 247, 250, 0.94));
+    box-shadow: 0 15px 40px rgba(113, 54, 78, 0.085);
+  }
+  .show-workspace.run-deck .performances-section.is-stage-active .run-focus-panel {
+    background: transparent;
+  }
+  .perf-select.is-assigned { grid-template-columns: minmax(0, 1fr) 106px; }
+  .searchable-select.is-track-change,
+  .performance-card .searchable-select.is-track-change .select-trigger {
+    width: 106px;
+    min-width: 106px;
+  }
+  .performance-card .searchable-select.is-track-change .select-trigger {
+    justify-content: space-between;
+    padding-inline: 8px 5px;
+  }
+  .perf-playing-label { justify-self: end; }
+}
+
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace.run-deck .background-section .section-header {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: max-content max-content;
+    align-items: center;
+    align-content: center;
+    justify-content: start;
+    column-gap: 3px;
+  }
+  .show-workspace.run-deck .bgm-header-toggle,
+  .show-workspace.run-deck.is-live .bgm-header-toggle {
+    width: max-content;
+    min-width: 0;
+    display: inline-grid;
+    grid-template-columns: 22px max-content;
+    align-items: center;
+    column-gap: 3px;
+    overflow: visible;
+  }
+  .show-workspace.run-deck .bgm-header-title {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+  .show-workspace.run-deck .bgm-header-expand-cue {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    color: rgba(180, 35, 105, 0.82);
+    background: rgba(232, 42, 137, 0.065);
+    box-shadow: 0 4px 12px rgba(161, 45, 94, 0.055);
+  }
+  .show-workspace.run-deck .bgm-header-actions {
+    margin: 0;
+    justify-self: start;
+  }
+  .show-workspace.run-deck .bgm-header-level > summary {
+    min-height: 28px;
+    padding-inline: 3px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bgm-queue-heading,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .queue-row,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .queue-track-copy {
+    opacity: 1;
+    color: var(--ink);
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perf-playing-label > span { animation: none; }
+}
+
+/* iPad disclosure and landscape transport refinements. */
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace.run-deck:not(.is-bgm-expanded) .background-section {
+    height: 50px;
+    min-height: 50px;
+    padding-block: 6px;
+    overflow: hidden;
+  }
+  .show-workspace.run-deck.is-bgm-expanded .background-section {
+    height: 430px;
+    min-height: 0;
+  }
+}
+
+@media (min-width: 621px) and (max-width: 1180px) and (min-height: 600px) {
+  .show-workspace.run-deck .background-section .section-header {
+    border: 0;
+    border-radius: 10px;
+    background: linear-gradient(105deg, rgba(255, 255, 255, 0.3), rgba(232, 42, 137, 0.025));
+    box-shadow: 0 7px 20px rgba(132, 55, 89, 0.04);
+  }
+  .show-workspace.run-deck .background-section.is-playing .section-header,
+  .show-workspace.run-deck .background-section.is-held .section-header {
+    background: linear-gradient(105deg, rgba(255, 255, 255, 0.43), rgba(232, 42, 137, 0.052));
+    box-shadow: 0 8px 24px rgba(147, 48, 91, 0.065);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) {
+  .show-workspace.run-deck.is-setup-open .performances-section {
+    grid-template-rows: 238px 34px minmax(0, 1fr);
+    transition: grid-template-rows 220ms var(--ease-out);
+  }
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    grid-template-rows: 304px 34px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck .run-focus-panel {
+    min-height: 0;
+    padding-block: 18px 10px;
+  }
+  .show-workspace.run-deck .run-signal-strip { margin-top: 8px; }
+
+  .show-workspace.run-deck .queue-row {
+    grid-template-columns: 22px minmax(0, 1fr) 24px;
+    column-gap: 2px;
+    padding-inline: 0;
+  }
+  .show-workspace.run-deck .queue-drag-handle {
+    width: 22px;
+    min-width: 22px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-track-cluster {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .show-workspace.run-deck .queue-track-copy {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline: 1px;
+  }
+  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
+    order: 2;
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-row-actions,
+  .show-workspace.run-deck .queue-row-actions button {
+    width: 24px;
+    min-width: 24px;
+    padding: 0;
+  }
+}
+
+/* Final iPad component language: compact chrome, soft focus, and title-first hierarchy. */
+.bgm-header-toggle:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+.bgm-header-toggle:focus-visible .bgm-header-expand-cue {
+  color: var(--pink-strong);
+  box-shadow: 0 0 0 2px rgba(213, 44, 120, 0.17), 0 5px 14px rgba(121, 57, 84, 0.06);
+}
+.run-focus-heading h2 {
+  max-width: 100%;
+  text-wrap: pretty;
+  line-break: auto;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.perf-select.is-assigned.is-completed {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.perf-completed-label {
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid rgba(112, 94, 102, 0.08);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-faint);
+  background: rgba(112, 94, 102, 0.035);
+  font-size: 9px;
+  font-weight: 660;
+  white-space: nowrap;
+}
+.queue-row.is-current,
+.performance-card.active,
+.performance-card.is-focused:not(.completed) {
+  border-color: rgba(213, 44, 120, 0.08);
+  background: linear-gradient(100deg, rgba(232, 42, 137, 0.06), rgba(255, 255, 255, 0.12) 62%, rgba(232, 42, 137, 0.018));
+  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.075), 0 5px 18px rgba(184, 23, 97, 0.035);
+}
+.queue-row.is-pending:not(.is-current) {
+  border-color: rgba(135, 91, 183, 0.075);
+  background: linear-gradient(100deg, rgba(135, 91, 183, 0.042), rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(135, 91, 183, 0.06);
+}
+
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace.run-deck .run-focus-heading h2 { max-width: 100%; }
+  .performance-card .searchable-select.is-track-change { width: 92px; }
+  .performance-card .searchable-select.is-track-change .select-trigger {
+    min-width: 92px;
+    padding-inline: 7px 4px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) {
+  .show-workspace.run-deck .background-section { padding-inline: 10px; }
+  .show-workspace.run-deck .queue-row {
+    grid-template-columns: 30px minmax(0, 1fr) 28px;
+    column-gap: 3px;
+    padding-inline: 1px;
+  }
+  .show-workspace.run-deck .queue-drag-handle {
+    width: 30px;
+    min-width: 30px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-row-actions button {
+    width: 28px;
+    min-width: 28px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-track-cluster { gap: 3px; }
+  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
+    width: 27px;
+    min-width: 27px;
+    height: 30px;
+    min-height: 30px;
+  }
+  .show-workspace.run-deck .queue-track-copy { padding-inline: 0; }
+  .show-workspace.run-deck .run-focus-heading h2 { max-width: 100%; }
+}
+
+/* iPad disclosure geometry: the expanded audio surface uses the available stage. */
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace,
+  .show-workspace.run-deck,
+  .show-workspace.run-deck.is-bgm-active:not(.is-live),
+  .show-workspace.run-deck.is-live.is-bgm-expanded {
+    grid-template-rows: 430px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck:not(.is-bgm-expanded),
+  .show-workspace.run-deck.is-live:not(.is-bgm-expanded) {
+    grid-template-rows: 50px minmax(0, 1fr);
+  }
+
+  .show-workspace .background-section .section-header,
+  .show-workspace.run-deck .background-section .section-header {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .show-workspace.run-deck .bgm-header-toggle,
+  .show-workspace.run-deck.is-live .bgm-header-toggle {
+    flex: 0 1 auto;
+    width: auto;
+    min-height: 34px;
+    padding: 0;
+    justify-content: flex-start;
+    gap: 6px;
+    color: var(--pink-strong);
+    background: transparent;
+  }
+  .show-workspace.run-deck .bgm-header-toggle:hover,
+  .show-workspace.run-deck .bgm-header-toggle[aria-expanded="true"],
+  .show-workspace.run-deck.is-live .bgm-header-toggle:hover,
+  .show-workspace.run-deck.is-live .bgm-header-toggle[aria-expanded="true"] {
+    color: var(--pink-strong);
+    background: transparent;
+  }
+  .show-workspace.run-deck .bgm-header-expand-cue {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    color: rgba(180, 35, 105, 0.7);
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(213, 44, 120, 0.07);
+  }
+  .show-workspace.run-deck .bgm-header-toggle:hover .bgm-header-expand-cue {
+    color: var(--pink-strong);
+    background: rgba(255, 255, 255, 0.34);
+  }
+  .show-workspace.run-deck .bgm-header-actions {
+    margin-left: 0;
+  }
+
+  .show-workspace.run-deck .background-section .bg-music-container {
+    max-height: 368px;
+    margin-top: 0;
+    opacity: 1;
+    transform: translateY(0);
+    transition: max-height 210ms var(--ease-out), opacity 145ms var(--ease-state), transform 210ms var(--ease-out);
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bg-music-container {
+    max-height: 368px;
+  }
+  .show-workspace.run-deck .background-section.queue-collapsed .bg-music-container {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-5px);
+    pointer-events: none;
+  }
+
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bgm-queue-heading,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .queue-row:not(.is-pending) {
+    color: var(--ink-soft);
+    filter: none;
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .queue-row:not(.is-pending) .queue-track-copy {
+    opacity: 1;
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .section-title,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bgm-header-level {
+    color: var(--pink-strong);
+  }
 }
 
 /* State lives in the whole row, not a caption or a decorative left stripe. */
 .queue-row::before { display: none; }
-.queue-track-copy { justify-content: center; }
+.queue-track-copy {
+  justify-content: start;
+  text-align: left;
+}
+.queue-track-copy > strong { width: 100%; text-align: left; }
 .queue-track-copy > strong { transition: color 150ms var(--ease-state), text-shadow 150ms var(--ease-state); }
 .queue-row.is-current,
 .queue-row.is-current.is-locked {
@@ -3781,7 +4292,7 @@ input:focus-visible {
 /* The lineup selects what the single stage player controls; it never duplicates playback. */
 .perf-select.is-assigned {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
+  grid-template-columns: minmax(0, 1fr) 96px;
   align-items: center;
   gap: 4px;
 }
@@ -3819,9 +4330,9 @@ input:focus-visible {
   box-shadow: inset 2px 0 0 rgba(213, 44, 120, 0.7);
 }
 
-.searchable-select.is-track-change { width: 88px; }
+.searchable-select.is-track-change { width: 96px; }
 .performance-card .searchable-select.is-track-change .select-trigger {
-  min-width: 88px;
+  min-width: 96px;
   min-height: 30px;
   padding: 0 5px 0 8px;
   border-color: rgba(91, 55, 68, 0.065);
@@ -4005,6 +4516,82 @@ input:focus-visible {
 }
 
 /* Final state layer: luminous surfaces replace status copy and hard left rails. */
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace,
+  .show-workspace.run-deck,
+  .show-workspace.run-deck.is-bgm-active:not(.is-live),
+  .show-workspace.run-deck.is-live.is-bgm-expanded {
+    grid-template-rows: 430px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck:not(.is-bgm-expanded),
+  .show-workspace.run-deck.is-live:not(.is-bgm-expanded) {
+    grid-template-rows: 50px minmax(0, 1fr);
+  }
+  .show-workspace .background-section .section-header,
+  .show-workspace.run-deck .background-section .section-header {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .show-workspace.run-deck .bgm-header-toggle,
+  .show-workspace.run-deck.is-live .bgm-header-toggle {
+    flex: 0 1 auto;
+    width: auto;
+    min-height: 34px;
+    padding: 0;
+    justify-content: flex-start;
+    gap: 6px;
+    color: var(--pink-strong);
+    background: transparent;
+  }
+  .show-workspace.run-deck .bgm-header-toggle:hover,
+  .show-workspace.run-deck .bgm-header-toggle[aria-expanded="true"],
+  .show-workspace.run-deck.is-live .bgm-header-toggle:hover,
+  .show-workspace.run-deck.is-live .bgm-header-toggle[aria-expanded="true"] {
+    color: var(--pink-strong);
+    background: transparent;
+  }
+  .show-workspace.run-deck .bgm-header-expand-cue {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    color: rgba(180, 35, 105, 0.7);
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(213, 44, 120, 0.07);
+  }
+  .show-workspace.run-deck .bgm-header-toggle:hover .bgm-header-expand-cue {
+    color: var(--pink-strong);
+    background: rgba(255, 255, 255, 0.34);
+  }
+  .show-workspace.run-deck .bgm-header-actions { margin-left: 0; }
+  .show-workspace.run-deck .background-section .bg-music-container {
+    max-height: 368px;
+    margin-top: 0;
+    opacity: 1;
+    transform: translateY(0);
+    transition: max-height 210ms var(--ease-out), opacity 145ms var(--ease-state), transform 210ms var(--ease-out);
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bg-music-container {
+    max-height: 368px;
+  }
+  .show-workspace.run-deck .background-section.queue-collapsed .bg-music-container {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-5px);
+    pointer-events: none;
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bgm-queue-heading,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .queue-row:not(.is-pending) {
+    color: var(--ink-soft);
+    filter: none;
+  }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .queue-row:not(.is-pending) .queue-track-copy { opacity: 1; }
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .section-title,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bgm-header-level { color: var(--pink-strong); }
+}
+
 .run-empty-state {
   margin: auto 0;
   display: grid;
@@ -4038,43 +4625,71 @@ input:focus-visible {
 .queue-row::before { display: none !important; content: none !important; }
 .queue-row.is-current,
 .queue-row.is-current.is-locked {
-  border-color: rgba(232, 42, 137, 0.13);
-  background: linear-gradient(105deg, rgba(232, 42, 137, 0.072), rgba(255, 255, 255, 0.18) 58%, rgba(232, 42, 137, 0.025));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38), 0 5px 18px rgba(213, 44, 120, 0.055);
+  border-color: rgba(232, 42, 137, 0.08);
+  background: linear-gradient(100deg, rgba(232, 42, 137, 0.06), rgba(255, 255, 255, 0.12) 62%, rgba(232, 42, 137, 0.018));
+  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.075), 0 5px 18px rgba(184, 23, 97, 0.035);
 }
 .queue-row.is-pending:not(.is-current),
 .show-workspace.run-deck.is-live .background-section .queue-row.is-pending:not(.is-current) {
-  border-color: rgba(135, 91, 183, 0.1);
-  background: linear-gradient(105deg, rgba(135, 91, 183, 0.046), rgba(255, 255, 255, 0.14));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3), 0 3px 12px rgba(98, 66, 132, 0.028);
+  border-color: rgba(135, 91, 183, 0.075);
+  background: linear-gradient(100deg, rgba(135, 91, 183, 0.042), rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(135, 91, 183, 0.06);
   filter: none;
 }
 .performance-card.is-focused:not(.active):not(.completed),
 .performance-card.active,
 .show-workspace.run-deck.is-setup-open .performance-card.active,
 .show-workspace:not(.run-deck) .performance-card.active {
-  background: linear-gradient(105deg, rgba(232, 42, 137, 0.052), rgba(255, 255, 255, 0.15));
-  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.09), 0 4px 14px rgba(213, 44, 120, 0.034);
+  border-color: rgba(232, 42, 137, 0.08);
+  background: linear-gradient(100deg, rgba(232, 42, 137, 0.052), rgba(255, 255, 255, 0.11));
+  box-shadow: inset 0 0 0 1px rgba(232, 42, 137, 0.07), 0 4px 14px rgba(184, 23, 97, 0.03);
 }
 
 /* iPad portrait is the primary operating surface: active audio owns the space. */
 @media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
   .show-workspace,
-  .show-workspace.run-deck { grid-template-rows: 292px minmax(0, 1fr); }
-  .show-workspace.run-deck.is-bgm-active:not(.is-live) { grid-template-rows: 348px minmax(0, 1fr); }
+  .show-workspace.run-deck { grid-template-rows: 430px minmax(0, 1fr); }
+  .show-workspace.run-deck.is-bgm-active:not(.is-live) { grid-template-rows: 430px minmax(0, 1fr); }
   .show-workspace.run-deck.is-live { grid-template-rows: 50px minmax(0, 1fr); }
-  .show-workspace.run-deck.is-live.is-bgm-expanded { grid-template-rows: 292px minmax(0, 1fr); }
+  .show-workspace.run-deck.is-live.is-bgm-expanded { grid-template-rows: 430px minmax(0, 1fr); }
 
   .show-workspace .background-section,
   .show-workspace.run-deck .background-section {
     gap: 2px;
-    padding: 13px 16px 11px;
+    padding: 10px 12px 9px;
   }
   .show-workspace .background-section .section-header,
   .show-workspace.run-deck .background-section .section-header {
-    min-height: 40px;
+    min-height: 36px;
     margin: 0;
-    padding: 0 0 5px;
+    padding: 0 0 3px;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .show-workspace.run-deck .bgm-header-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 4px;
+    overflow: hidden;
+  }
+  .show-workspace.run-deck .bgm-header-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .show-workspace.run-deck .bgm-header-expand-cue {
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .show-workspace.run-deck .bgm-header-actions {
+    flex: 0 0 auto;
+    margin-left: 0;
   }
   .show-workspace .background-section .section-title,
   .show-workspace.run-deck .background-section .section-title,
@@ -4097,20 +4712,20 @@ input:focus-visible {
   }
 
   .bgm-header-level > summary {
-    min-height: 32px;
-    padding-inline: 7px;
+    min-height: 28px;
+    padding-inline: 4px;
     border-color: transparent;
     border-radius: 9px;
     color: var(--pink-strong);
     background: transparent;
-    box-shadow: inset 0 0 0 1px rgba(213, 44, 120, 0.09), 0 5px 16px rgba(121, 57, 84, 0.045);
+    box-shadow: none;
     backdrop-filter: blur(12px) saturate(1.08);
   }
   .bgm-header-level > summary:hover,
   .bgm-header-level[open] > summary {
     border-color: transparent;
-    background: rgba(255, 255, 255, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(213, 44, 120, 0.14), 0 6px 18px rgba(121, 57, 84, 0.06);
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: none;
   }
 
   .bgm-visualizer-slot.is-active { height: 36px; margin: 2px 0 1px; }
@@ -4118,40 +4733,33 @@ input:focus-visible {
   .background-section .bgm-queue-heading { min-height: 30px; padding: 0 2px 3px; }
   .background-section .bgm-queue { padding: 1px 0 3px; }
   .show-workspace.run-deck .queue-row {
-    grid-template-columns: 54px minmax(0, 1fr) 32px;
+    grid-template-columns: 30px minmax(0, 1fr) 28px;
     min-height: 43px;
     height: 43px;
-    gap: 5px;
-    padding: 2px 3px;
+    gap: 3px;
+    padding: 2px 1px;
     border: 1px solid transparent;
     border-radius: 10px;
   }
   .show-workspace.run-deck .queue-drag-handle {
-    width: 54px;
-    min-width: 54px;
-    height: 36px;
-    min-height: 36px;
-    justify-content: flex-start;
-    gap: 7px;
-    padding: 0 4px;
-  }
-  .show-workspace.run-deck .queue-drag-handle span {
-    min-width: 18px;
-    font-size: 9.5px;
-    text-align: right;
-  }
-  .show-workspace.run-deck .queue-track-cluster { gap: 6px; }
-  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
     width: 30px;
     min-width: 30px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-track-cluster { gap: 3px; }
+  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
+    width: 27px;
+    min-width: 27px;
     height: 30px;
     min-height: 30px;
   }
   .show-workspace.run-deck .queue-track-copy { padding-inline: 1px; }
   .show-workspace.run-deck .queue-track-copy strong { font-size: 11.5px; }
   .show-workspace.run-deck .queue-row-actions button {
-    width: 32px;
-    min-width: 32px;
+    width: 28px;
+    min-width: 28px;
     height: 34px;
     min-height: 34px;
   }
@@ -4167,10 +4775,321 @@ input:focus-visible {
     padding: 22px 18px 12px;
   }
   .show-workspace.run-deck .run-focus-heading h2 {
-    max-width: 94%;
+    max-width: 100%;
     font-size: clamp(26px, 4.7vw, 36px);
     line-height: 1.03;
   }
   .show-workspace.run-deck .run-action-row { margin-top: 9px; }
   .show-workspace.run-deck .run-progress { margin-top: 5px; }
+}
+
+/* Canonical iPad queue disclosure: one BGM surface, one-row collapse. */
+@media (min-width: 621px) and (max-width: 1180px) and (min-height: 600px) {
+  .show-workspace.run-deck .background-section .bgm-queue-heading,
+  .show-workspace.run-deck .background-section .bgm-queue {
+    padding-inline: 0;
+  }
+  .show-workspace.run-deck .queue-row {
+    grid-template-columns: 20px minmax(0, 1fr) 22px;
+    min-height: 43px;
+    height: 43px;
+    gap: 2px;
+    padding: 1px 0;
+  }
+  .show-workspace.run-deck .queue-drag-handle {
+    width: 20px;
+    min-width: 20px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .queue-track-cluster { gap: 2px; }
+  .show-workspace.run-deck .queue-track-copy { padding-inline: 1px; }
+  .show-workspace.run-deck .queue-track-cluster .queue-playback-button,
+  .show-workspace.run-deck .queue-row-actions,
+  .show-workspace.run-deck .queue-row-actions button {
+    width: 22px;
+    min-width: 22px;
+    padding: 0;
+  }
+  .show-workspace.run-deck .bgm-queue.is-collapsed .queue-row {
+    grid-template-columns: minmax(0, 1fr) 22px;
+  }
+  .show-workspace.run-deck .bgm-queue.is-collapsed .queue-drag-handle {
+    display: none;
+  }
+  .queue-row.is-current,
+  .queue-row.is-current.is-locked,
+  .performance-card.is-focused:not(.active):not(.completed),
+  .performance-card.active,
+  .show-workspace.run-deck.is-setup-open .performance-card.active {
+    border-color: transparent;
+    background: linear-gradient(105deg, rgba(232, 42, 137, 0.065), rgba(255, 255, 255, 0.16) 66%, rgba(232, 42, 137, 0.025));
+    box-shadow: 0 8px 24px rgba(165, 38, 94, 0.065), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  }
+  .queue-row.is-pending:not(.is-current),
+  .show-workspace.run-deck.is-live .background-section .queue-row.is-pending:not(.is-current) {
+    border-color: transparent;
+    background: linear-gradient(105deg, rgba(137, 92, 184, 0.045), rgba(255, 255, 255, 0.1));
+    box-shadow: 0 5px 16px rgba(98, 68, 135, 0.04);
+  }
+}
+
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace.run-deck:not(.is-bgm-expanded),
+  .show-workspace.run-deck.is-live:not(.is-bgm-expanded) {
+    grid-template-rows: 134px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck.is-bgm-active:not(.is-bgm-expanded) {
+    grid-template-rows: 174px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck.is-bgm-expanded,
+  .show-workspace.run-deck.is-live.is-bgm-expanded,
+  .show-workspace.run-deck.is-bgm-active.is-bgm-expanded {
+    grid-template-rows: 430px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck:not(.is-bgm-expanded) .background-section,
+  .show-workspace.run-deck.is-live:not(.is-bgm-expanded) .background-section {
+    height: 134px;
+    min-height: 134px;
+    padding: 8px 12px 7px;
+    overflow: hidden;
+  }
+  .show-workspace.run-deck.is-bgm-active:not(.is-bgm-expanded) .background-section {
+    height: 174px;
+    min-height: 174px;
+  }
+  .show-workspace.run-deck.is-bgm-expanded .background-section {
+    height: 430px;
+    min-height: 0;
+  }
+  .show-workspace.run-deck .background-section .section-header {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) max-content;
+    justify-content: start;
+    align-items: center;
+    gap: 5px;
+    min-height: 34px;
+    padding: 0 0 3px;
+  }
+  .show-workspace.run-deck .bgm-header-toggle {
+    display: grid;
+    grid-template-columns: 22px minmax(0, max-content);
+    align-items: center;
+    gap: 4px;
+  }
+  .show-workspace.run-deck .bgm-header-expand-cue {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    color: var(--pink-strong);
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: 0 4px 12px rgba(166, 45, 96, 0.07), 0 1px 0 rgba(255, 255, 255, 0.76) inset;
+  }
+  .show-workspace.run-deck .bgm-header-actions { margin-left: 0; }
+  .show-workspace.run-deck .bgm-header-level > summary {
+    min-height: 27px;
+    padding-inline: 3px;
+  }
+  .show-workspace.run-deck .background-section.queue-collapsed .bg-music-container,
+  .show-workspace.run-deck.is-live .background-section.queue-collapsed .bg-music-container {
+    display: flex;
+    max-height: 80px;
+    min-height: 0;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    overflow: hidden;
+  }
+  .show-workspace.run-deck.is-bgm-active .background-section.queue-collapsed .bg-music-container {
+    max-height: 120px;
+  }
+  .show-workspace.run-deck.is-bgm-expanded .background-section .bg-music-container,
+  .show-workspace.run-deck.is-live.is-bgm-expanded .background-section .bg-music-container {
+    max-height: 376px;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .show-workspace.run-deck .bgm-visualizer-slot.is-active {
+    height: 36px;
+    min-height: 36px;
+    margin: 1px 0 0;
+  }
+  .show-workspace.run-deck .bgm-visualizer-slot.is-active .audio-visualizer {
+    height: 36px;
+    min-height: 36px;
+  }
+  .show-workspace.run-deck .background-section .bgm-queue-heading {
+    min-height: 27px;
+    padding-block: 0 1px;
+  }
+  .show-workspace.run-deck .background-section .bgm-queue {
+    padding-block: 0 2px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) {
+  .show-workspace.run-deck.is-setup-open .performances-section {
+    grid-template-rows: 238px 34px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    grid-template-rows: 304px 34px minmax(0, 1fr);
+  }
+  .show-workspace.run-deck .queue-track-cluster {
+    display: flex;
+    align-items: center;
+  }
+  .show-workspace.run-deck .queue-track-copy {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .show-workspace.run-deck .queue-track-cluster .queue-playback-button {
+    order: 2;
+    flex: 0 0 22px;
+  }
+}
+
+/* Compact lineup actions: title-first rows with a quiet overflow menu. */
+.performance-actions-menu {
+  padding: 5px;
+  display: grid;
+  gap: 2px;
+}
+.performance-actions-menu button {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: left;
+}
+.performance-actions-menu button:hover,
+.performance-actions-menu button:focus-visible {
+  outline: 0;
+  color: var(--pink-strong);
+  background: rgba(213, 44, 120, 0.055);
+}
+.performance-actions-menu button.is-danger { color: var(--danger); }
+.performance-actions-menu button.is-danger:hover,
+.performance-actions-menu button.is-danger:focus-visible {
+  background: rgba(156, 41, 72, 0.065);
+}
+
+@media (min-width: 621px) and (max-width: 1180px) and (min-height: 600px) {
+  .perf-select.is-assigned {
+    grid-template-columns: minmax(0, 1fr) 30px;
+    gap: 2px;
+  }
+  .searchable-select.is-track-change,
+  .performance-card .searchable-select.is-track-change .select-trigger,
+  .show-workspace.run-deck.is-setup-open .performance-card .searchable-select.is-track-change .select-trigger {
+    width: 28px;
+    min-width: 28px;
+  }
+  .performance-card .searchable-select.is-track-change .select-trigger,
+  .show-workspace.run-deck.is-setup-open .performance-card .searchable-select.is-track-change .select-trigger {
+    min-height: 28px;
+    height: 28px;
+    padding: 0;
+    border-color: transparent;
+    border-radius: 8px;
+    justify-content: center;
+    color: var(--ink-faint);
+    background: transparent;
+    box-shadow: none;
+  }
+  .performance-card .searchable-select.is-track-change .select-trigger:hover:not(:disabled),
+  .performance-card .searchable-select.is-track-change .select-trigger[aria-expanded="true"] {
+    border-color: transparent;
+    color: var(--pink-strong);
+    background: rgba(213, 44, 120, 0.055);
+    box-shadow: 0 5px 14px rgba(156, 43, 92, 0.045);
+  }
+}
+
+/* Canonical active-state finish: depth surrounds the surface; no edge rails. */
+.queue-row::before,
+.library-track-row.is-active::before,
+.select-option.selected::before {
+  display: none !important;
+  content: none !important;
+}
+
+.queue-row.is-current,
+.queue-row.is-current.is-locked,
+.library-track-row.is-active,
+.select-option.selected {
+  border-color: rgba(222, 51, 128, 0.08);
+  background:
+    radial-gradient(circle at 48% 0%, rgba(255, 255, 255, 0.56), transparent 58%),
+    linear-gradient(105deg, rgba(232, 42, 137, 0.07), rgba(255, 255, 255, 0.17) 64%, rgba(232, 42, 137, 0.025));
+  box-shadow:
+    0 9px 24px rgba(166, 38, 95, 0.07),
+    0 2px 8px rgba(166, 38, 95, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.78) inset;
+}
+
+.queue-row.is-pending:not(.is-current),
+.show-workspace.run-deck.is-live .background-section .queue-row.is-pending:not(.is-current) {
+  border-color: rgba(136, 91, 183, 0.06);
+  background: linear-gradient(105deg, rgba(137, 92, 184, 0.045), rgba(255, 255, 255, 0.11));
+  box-shadow: 0 6px 18px rgba(98, 68, 135, 0.045);
+}
+
+.search-input-wrapper:focus-within {
+  box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus-ring);
+}
+
+@media (min-width: 621px) and (max-width: 1180px) and (min-height: 600px) {
+  .show-workspace.run-deck .performances-section.is-stage-active {
+    border-color: rgba(224, 57, 132, 0.09);
+    background:
+      radial-gradient(circle at 24% 0%, rgba(255, 255, 255, 0.82), transparent 52%),
+      linear-gradient(142deg, rgba(255, 253, 252, 0.97), rgba(253, 246, 249, 0.92));
+    box-shadow:
+      0 20px 48px rgba(166, 38, 95, 0.09),
+      0 6px 18px rgba(166, 38, 95, 0.055),
+      0 1px 0 rgba(255, 255, 255, 0.84) inset;
+  }
+
+  .show-workspace.run-deck .performances-section.is-stage-active .run-focus-panel {
+    background: transparent;
+  }
+}
+
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) and (min-height: 780px) {
+  .show-workspace.run-deck.is-bgm-active:not(.is-bgm-expanded) {
+    grid-template-rows: 180px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-bgm-active:not(.is-bgm-expanded) .background-section {
+    height: 180px;
+    min-height: 180px;
+  }
+
+  .show-workspace.run-deck.is-bgm-active .background-section.queue-collapsed .bg-music-container {
+    max-height: 126px;
+  }
+
+  .show-workspace.run-deck .bgm-visualizer-slot.is-active {
+    height: 39px;
+    min-height: 39px;
+    margin: 5px 4px 1px;
+  }
+
+  .show-workspace.run-deck .bgm-visualizer-slot.is-active .audio-visualizer {
+    height: 36px;
+    min-height: 36px;
+  }
 }

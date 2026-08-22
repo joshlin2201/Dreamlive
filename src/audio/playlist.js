@@ -1,10 +1,11 @@
 const unchanged = (playlist, currentIndex) => ({ playlist, currentIndex, changed: false });
 
-export function playlistDisplayOrder({ playlist, currentIndex = 0 }) {
+export function playlistDisplayOrder({ playlist, currentIndex = 0, maxItems = null }) {
   if (playlist.length === 0) return [];
   const safeIndex = Math.max(0, Math.min(currentIndex, playlist.length - 1));
   const entries = playlist.map((path, sourceIndex) => ({ path, sourceIndex }));
-  return [...entries.slice(safeIndex), ...entries.slice(0, safeIndex)];
+  const ordered = [...entries.slice(safeIndex), ...entries.slice(0, safeIndex)];
+  return Number.isInteger(maxItems) ? ordered.slice(0, Math.max(0, maxItems)) : ordered;
 }
 
 export function nextPlaylistIndex({ currentIndex, length, repeat }) {

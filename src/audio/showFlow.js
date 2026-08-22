@@ -77,3 +77,31 @@ export function getShowDeckState({
 export function shouldShowRunDeck({ mode, hasAudio }) {
   return mode !== 'prep' || Boolean(hasAudio);
 }
+
+export function promotePerformanceOrder({ order, activeIndex, completed = [] }) {
+  if (!order.includes(activeIndex)) return order;
+  const remaining = order.filter(index => index !== activeIndex);
+  const nextOpenPosition = remaining.findIndex(index => !completed[index]);
+  const insertAt = nextOpenPosition < 0 ? remaining.length : nextOpenPosition;
+  return [
+    ...remaining.slice(0, insertAt),
+    activeIndex,
+    ...remaining.slice(insertAt),
+  ];
+}
+
+export function isPerformanceCycleComplete({ assignments = [], completed = [] }) {
+  return assignments.some(Boolean) && assignments.every((assigned, index) => (
+    !assigned || Boolean(completed[index])
+  ));
+}
+
+export function visiblePerformanceOrder({
+  order = [],
+  assignments = [],
+  hasStarted = false,
+  draftIndex = null,
+}) {
+  if (!hasStarted) return order;
+  return order.filter(index => Boolean(assignments[index]) || index === draftIndex);
+}

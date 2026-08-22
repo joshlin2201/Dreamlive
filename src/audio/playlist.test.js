@@ -19,6 +19,9 @@ describe('background playlist rules', () => {
         { path: 'a', sourceIndex: 0 },
         { path: 'b', sourceIndex: 1 },
       ]);
+    expect(playlistDisplayOrder({
+      playlist: ['a', 'b', 'c', 'd'], currentIndex: 2, maxItems: 1,
+    })).toEqual([{ path: 'c', sourceIndex: 2 }]);
   });
 
   test('previous restarts after three seconds and otherwise moves backward', () => {

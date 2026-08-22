@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   FolderOpen,
+  MoreVertical,
   Pause,
   Play,
   Plus,
@@ -20,9 +21,12 @@ import {
   finishPerformanceFlow,
   getShowDeckState,
   getShowReadiness,
+  isPerformanceCycleComplete,
   nextPlaylistIndex,
+  promotePerformanceOrder,
   shouldShowRunDeck,
   startPerformanceFlow,
+  visiblePerformanceOrder,
 } from './audio/showFlow';
 import {
   insertPlaylistItem,
@@ -56,8 +60,11 @@ function SearchableSelect({
   triggerAriaLabel,
   menuWidth,
   menuAlign,
+  compactActions = false,
+  onRemove,
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuStage, setMenuStage] = useState('actions');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 320, placement: 'bottom' });
@@ -115,21 +122,23 @@ function SearchableSelect({
         rect,
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
-        preferredWidth: menuWidth,
+        preferredWidth: compactActions && menuStage === 'actions' ? 190 : menuWidth,
         align: menuAlign,
       }));
     };
     updatePosition();
     window.addEventListener('resize', updatePosition);
     window.addEventListener('scroll', updatePosition, true);
-    const focusFrame = window.requestAnimationFrame(() => searchRef.current?.focus());
+    const focusFrame = window.requestAnimationFrame(() => {
+      if (!compactActions || menuStage === 'tracks') searchRef.current?.focus();
+    });
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [isOpen, menuAlign, menuWidth]);
+  }, [compactActions, isOpen, menuAlign, menuStage, menuWidth]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -140,11 +149,15 @@ function SearchableSelect({
   const handleSelect = (optionValue) => {
     onChange(optionValue);
     setIsOpen(false);
+    setMenuStage('actions');
     setSearchTerm('');
   };
 
   const openSelect = () => {
-    if (!disabled) setIsOpen(true);
+    if (!disabled) {
+      setMenuStage(compactActions ? 'actions' : 'tracks');
+      setIsOpen(true);
+    }
   };
 
   const handleTriggerKeyDown = event => {
@@ -177,7 +190,7 @@ function SearchableSelect({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: position.placement === 'top' ? 4 : -4, scale: 0.985 }}
           transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-          className="select-dropdown"
+          className={`select-dropdown ${compactActions && menuStage === 'actions' ? 'is-action-menu' : ''}`}
           data-placement={position.placement}
           style={{
             position: 'fixed',
@@ -187,36 +200,57 @@ function SearchableSelect({
             '--menu-max-height': `${position.maxHeight}px`,
           }}
         >
-          <div className="search-input-wrapper">
-            <Search size={16} className="search-icon" />
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Search tracks…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              ref={searchRef}
-              aria-label="Search audio tracks"
-              aria-controls={listboxId}
-              aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
-            />
-            {searchTerm && (
+          {compactActions && menuStage === 'actions' ? (
+            <div className="performance-actions-menu" role="menu" aria-label="Performance options">
+              <button type="button" role="menuitem" onClick={() => setMenuStage('tracks')}>
+                <Search size={15} />
+                <span>Change song</span>
+              </button>
               <button
                 type="button"
-                className="clear-search"
-                onClick={() => setSearchTerm('')}
-                aria-label="Clear track search"
+                role="menuitem"
+                className="is-danger"
+                onClick={() => {
+                  onRemove?.();
+                  setIsOpen(false);
+                  setMenuStage('actions');
+                }}
               >
-                <X size={16} />
+                <Trash2 size={15} />
+                <span>Remove song</span>
               </button>
-            )}
-          </div>
-          <div id={listboxId} className="select-options" role="listbox" aria-label="Audio tracks">
-            {filteredOptions.length === 0 ? (
-              <div className="no-results">No tracks found</div>
-            ) : (
-              filteredOptions.map((option, index) => (
+            </div>
+          ) : (
+            <>
+              <div className="search-input-wrapper">
+                <Search size={16} className="search-icon" />
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Search tracks…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  ref={searchRef}
+                  aria-label="Search audio tracks"
+                  aria-controls={listboxId}
+                  aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="clear-search"
+                    onClick={() => setSearchTerm('')}
+                    aria-label="Clear track search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div id={listboxId} className="select-options" role="listbox" aria-label="Audio tracks">
+                {filteredOptions.length === 0 ? (
+                  <div className="no-results">No tracks found</div>
+                ) : filteredOptions.map((option, index) => (
                 <button
                   key={option.value}
                   id={`${listboxId}-${index}`}
@@ -230,9 +264,10 @@ function SearchableSelect({
                   <span>{option.label}</span>
                   {option.value === value && <Check size={16} aria-hidden="true" />}
                 </button>
-              ))
-            )}
-          </div>
+                ))}
+              </div>
+            </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
@@ -240,23 +275,37 @@ function SearchableSelect({
 
   return (
     <>
-      <div className={`searchable-select ${triggerClassName}`}>
+      <div className={`searchable-select ${triggerClassName} ${compactActions ? 'is-compact-actions' : ''}`}>
         <button
           ref={triggerRef}
           type="button"
           className="select-trigger"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={() => {
+            if (disabled) return;
+            if (isOpen) {
+              setIsOpen(false);
+              setMenuStage('actions');
+            } else {
+              openSelect();
+            }
+          }}
           onKeyDown={handleTriggerKeyDown}
           disabled={disabled}
-          aria-haspopup="listbox"
+          aria-haspopup={compactActions ? 'menu' : 'listbox'}
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
           aria-label={triggerAriaLabel}
         >
-          <span className="select-value">
-            {triggerLabel || (selectedOption ? selectedOption.label : placeholder)}
-          </span>
-          <ChevronDown size={16} className="select-icon" />
+          {compactActions ? (
+            <MoreVertical size={17} aria-hidden="true" />
+          ) : (
+            <>
+              <span className="select-value">
+                {triggerLabel || (selectedOption ? selectedOption.label : placeholder)}
+              </span>
+              <ChevronDown size={16} className="select-icon" />
+            </>
+          )}
         </button>
       </div>
       {ReactDOM.createPortal(dropdownContent, document.body)}
@@ -315,6 +364,9 @@ function App() {
   const [pendingBgTrack, setPendingBgTrack] = useState('');
   const pendingBgTrackRef = useRef('');
   const [bgQueueExpanded, setBgQueueExpanded] = useState(true);
+  const [isPortraitLayout, setIsPortraitLayout] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
+  ));
   const [libraryOpen, setLibraryOpen] = useState(false);
   const bgAudioRef = useRef(null);
   const bgTrack = bgPlaylist[bgIndex] || '';
@@ -328,13 +380,19 @@ function App() {
   const [currentPerformance, setCurrentPerformance] = useState(null);
   const [selectedPerformanceIndex, setSelectedPerformanceIndex] = useState(null);
   const [performanceStatus, setPerformanceStatus] = useState(() => performanceArray(false));
+  const [performanceOrder, setPerformanceOrder] = useState(() => performanceArray(null).map((_, index) => index));
+  const [draftPerformanceIndex, setDraftPerformanceIndex] = useState(null);
+  const [lineupCommitted, setLineupCommitted] = useState(false);
   const perfAudioRefs = useRef(performanceArray(null));
   const [showPhase, setShowPhase] = useState(SHOW_PHASE.SETUP);
   const [showError, setShowError] = useState('');
 
   useEffect(() => {
-    setBgQueueExpanded(currentPerformance === null);
-  }, [currentPerformance]);
+    const portraitQuery = window.matchMedia('(orientation: portrait)');
+    const syncOrientation = event => setIsPortraitLayout(event.matches);
+    portraitQuery.addEventListener?.('change', syncOrientation);
+    return () => portraitQuery.removeEventListener?.('change', syncOrientation);
+  }, []);
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [libraryRemoval, setLibraryRemoval] = useState(null);
@@ -764,6 +822,7 @@ function App() {
         setPerfProgress(performanceArray(0, performanceCount));
         setPerfDurations(performanceArray(0, performanceCount));
         setPerformanceStatus(performanceArray(false, performanceCount));
+        setPerformanceOrder(Array.from({ length: performanceCount }, (_, index) => index));
         perfAudioRefs.current = performanceArray(null, performanceCount);
         perfGainNodeRefs.current = performanceArray(null, performanceCount);
         perfSourceNodeRefs.current = performanceArray(null, performanceCount);
@@ -1407,7 +1466,6 @@ function App() {
     setPerformanceStatus(previous => previous.map((done, trackIndex) => (
       trackIndex === index ? false : done
     )));
-
     try {
       await startPerformanceFlow({
         lowerBackground: fadeOutBackground,
@@ -1415,6 +1473,12 @@ function App() {
         restoreBackground: fadeInBackground,
         onPhase: setShowPhase,
       });
+      setLineupCommitted(true);
+      setPerformanceOrder(previous => promotePerformanceOrder({
+        order: previous,
+        activeIndex: index,
+        completed: performanceStatus,
+      }));
       transitionLockRef.current = false;
     } catch (error) {
       transitionLockRef.current = false;
@@ -1465,9 +1529,23 @@ function App() {
     setPerfPlaying(previous => previous.map((playing, trackIndex) => (
       trackIndex === index ? false : playing
     )));
-    setPerformanceStatus(previous => previous.map((done, trackIndex) => (
+    const completedStatuses = performanceStatus.map((done, trackIndex) => (
       trackIndex === index ? true : done
-    )));
+    ));
+    const cycleComplete = isPerformanceCycleComplete({
+      assignments: perfTracks.map(Boolean),
+      completed: completedStatuses,
+    });
+    setPerformanceStatus(cycleComplete ? performanceArray(false, perfTracks.length) : completedStatuses);
+    if (cycleComplete) {
+      perfAudioRefs.current.forEach(audio => {
+        if (audio) audio.currentTime = 0;
+      });
+      setPerfPlaying(performanceArray(false, perfTracks.length));
+      setPerfProgress(previous => previous.map(() => 0));
+      setPerformanceOrder(performanceArray(null, perfTracks.length).map((_, trackIndex) => trackIndex));
+      setBgQueueExpanded(false);
+    }
 
     setCurrentPerformance(null);
     setSelectedPerformanceIndex(null);
@@ -1539,6 +1617,9 @@ function App() {
     setPerfProgress(performanceArray(0));
     setPerfDurations(performanceArray(0));
     setPerformanceStatus(performanceArray(false));
+    setPerformanceOrder(performanceArray(null).map((_, index) => index));
+    setDraftPerformanceIndex(null);
+    setLineupCommitted(false);
     perfAudioRefs.current = performanceArray(null);
     perfGainNodeRefs.current = performanceArray(null);
     perfSourceNodeRefs.current = performanceArray(null);
@@ -1551,17 +1632,37 @@ function App() {
   };
 
   const addPerformance = () => {
+    const newIndex = perfTracks.length;
     setPerfTracks(previous => [...previous, '']);
     setPerfPlaying(previous => [...previous, false]);
     setPerfVolumes(previous => [...previous, 0.8]);
     setPerfProgress(previous => [...previous, 0]);
     setPerfDurations(previous => [...previous, 0]);
     setPerformanceStatus(previous => [...previous, false]);
+    setPerformanceOrder(previous => [...previous, previous.length]);
     perfAudioRefs.current.push(null);
     perfGainNodeRefs.current.push(null);
     perfSourceNodeRefs.current.push(null);
     seekTimeoutRefs.current.perf.push(null);
+    setDraftPerformanceIndex(newIndex);
     showNotice('Performance added.');
+  };
+
+  const updatePerformanceTrack = (index, value) => {
+    setPerfTracks(previous => previous.map((track, trackIndex) => (
+      trackIndex === index ? value : track
+    )));
+    setPerformanceStatus(previous => previous.map((done, trackIndex) => (
+      trackIndex === index ? false : done
+    )));
+    setPerfProgress(previous => previous.map((progress, trackIndex) => (
+      trackIndex === index ? 0 : progress
+    )));
+    setPerfDurations(previous => previous.map((duration, trackIndex) => (
+      trackIndex === index ? 0 : duration
+    )));
+    if (value && draftPerformanceIndex === index) setDraftPerformanceIndex(null);
+    if (currentPerformance === null) setSelectedPerformanceIndex(value ? index : null);
   };
 
   const restartDreamLive = async () => {
@@ -1580,6 +1681,7 @@ function App() {
       setPerfPlaying(previous => previous.map(() => false));
       setPerfProgress(previous => previous.map(() => 0));
       setPerformanceStatus(previous => previous.map(() => false));
+      setDraftPerformanceIndex(null);
       setCurrentPerformance(null);
       setSelectedPerformanceIndex(null);
       setIsFading(false);
@@ -1667,8 +1769,22 @@ function App() {
     && Boolean(perfTracks[selectedPerformanceIndex])
     && !performanceStatus[selectedPerformanceIndex]
     ? selectedPerformanceIndex
-    : deckState.nextPerformanceIndex;
+    : (performanceOrder.find(index => (
+      Boolean(perfTracks[index])
+      && !performanceStatus[index]
+      && index !== currentPerformance
+    )) ?? deckState.nextPerformanceIndex);
   const focusPerformanceIndex = deckState.activePerformanceIndex ?? selectedReadyPerformance;
+  const visiblePerformanceIndexes = visiblePerformanceOrder({
+    order: performanceOrder,
+    assignments: perfTracks,
+    hasStarted: hasPerformanceHistory || lineupCommitted,
+    draftIndex: draftPerformanceIndex,
+  });
+
+  useEffect(() => {
+    setBgQueueExpanded(!isPortraitLayout || (assignedCount === 0 && currentPerformance === null));
+  }, [assignedCount, currentPerformance, isPortraitLayout]);
 
   const libraryRemovalPaths = libraryRemoval?.paths || [];
   const libraryRemovalSet = new Set(libraryRemovalPaths);
@@ -1825,7 +1941,7 @@ function App() {
           <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''} ${bgPlaying && currentPerformance === null ? 'is-bgm-active' : ''} ${bgQueueExpanded ? 'is-bgm-expanded' : ''} ${currentPerformance !== null && (perfPlaying[currentPerformance] || isFading) ? 'is-visualizing' : ''}`}>
             <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''} ${currentPerformance !== null || isFading ? 'is-held' : ''} ${bgQueueExpanded ? 'queue-expanded' : 'queue-collapsed'}`}>
               <div className="section-header">
-                {runDeck && currentPerformance !== null ? (
+                {runDeck ? (
                   <button
                     type="button"
                     className="section-title bgm-header-toggle"
@@ -1834,12 +1950,10 @@ function App() {
                     aria-controls="dreamlive-bgm-queue"
                     aria-label={`${bgQueueExpanded ? 'Collapse' : 'Expand'} BGM playlist`}
                   >
-                    <span className="bgm-header-title">BGM <span className="japanese-label">バックグラウンド</span></span>
                     <span className="bgm-header-expand-cue" aria-hidden="true">
-                      <span>Playlist</span>
-                      <strong>{bgPlaylist.length}</strong>
-                      <ChevronDown size={14} />
+                      <ChevronDown size={15} />
                     </span>
+                    <span className="bgm-header-title">BGM <span className="japanese-label">バックグラウンド</span></span>
                   </button>
                 ) : (
                   <h2 className="section-title">BGM <span className="japanese-label">バックグラウンド</span></h2>
@@ -1895,6 +2009,7 @@ function App() {
                   pendingIndex={pendingBgTrack ? bgPlaylist.indexOf(pendingBgTrack) : null}
                   playbackLocked={isFading && currentPerformance === null}
                   queueOnly={currentPerformance !== null}
+                  collapsed={runDeck && !bgQueueExpanded}
                   playing={bgPlaying}
                   showPlayback={runDeck}
                   trackName={trackName}
@@ -2079,20 +2194,11 @@ function App() {
                       <span>{formatTime(perfDurations[focusPerformanceIndex])}</span>
                     </div>
                   </>
-                ) : assignedCount === 0 ? (
+                ) : (
                   <div className="run-empty-state">
                     <span className="run-focus-kicker">Stage ready <span className="japanese-label">ステージ準備</span></span>
                     <h2>Not assigned</h2>
                     <p>Choose a track in the lineup below.</p>
-                  </div>
-                ) : (
-                  <div className="run-complete-state">
-                    <Check size={28} />
-                    <div>
-                      <span className="run-focus-kicker">Show complete <span className="japanese-label">ショー完了</span></span>
-                      <h2>All performances complete</h2>
-                      <p>{bgTrack ? 'BGM continues. Add another performance below when needed.' : 'Add another performance below.'}</p>
-                    </div>
                   </div>
                 )}
               </div>
@@ -2127,16 +2233,18 @@ function App() {
               </div>
             )}
             <div className="performances-grid">
-              {perfTracks.map((_, index) => (
-                <div
+              {visiblePerformanceIndexes.map((index, position) => (
+                <motion.div
                   key={index}
+                  layout="position"
+                  transition={{ layout: { duration: 0.26, ease: [0.16, 1, 0.3, 1] } }}
                   className={`performance-card ${currentPerformance === index ? 'active' : ''
                     } ${currentPerformance === null && focusPerformanceIndex === index && !performanceStatus[index] ? 'is-focused' : ''
                     } ${performanceStatus[index] ? 'completed' : ''} ${perfTracks[index] ? '' : 'is-empty'}`}
-                  aria-label={`Performance ${index + 1}`}
+                  aria-label={`Performance ${position + 1}`}
                 >
                   <div className="perf-header">
-                    <div className="perf-number">{String(index + 1).padStart(2, '0')}</div>
+                    <div className="perf-number">{String(position + 1).padStart(2, '0')}</div>
                     {currentPerformance === index && perfPlaying[index] ? (
                       <span className="perf-status-badge playing" aria-label="Live" title="Live" />
                     ) : currentPerformance === index && !perfPlaying[index] ? (
@@ -2150,50 +2258,49 @@ function App() {
                     )}
                   </div>
 
-                  <div className={`perf-select ${perfTracks[index] ? 'is-assigned' : ''}`}>
+                  <div className={`perf-select ${perfTracks[index] ? 'is-assigned' : ''} ${performanceStatus[index] ? 'is-completed' : ''}`}>
                     {perfTracks[index] && (
                       <button
                         type="button"
                         className="perf-track-focus"
                         onClick={() => setSelectedPerformanceIndex(index)}
                         disabled={currentPerformance !== null || performanceStatus[index] || isFading}
-                        aria-label={`Select performance ${index + 1}: ${trackName(perfTracks[index])}`}
+                        aria-label={`Select performance ${position + 1}: ${trackName(perfTracks[index])}`}
                         aria-pressed={currentPerformance === null && focusPerformanceIndex === index}
                       >
                         <span>{trackName(perfTracks[index])}</span>
                       </button>
                     )}
-                    <SearchableSelect
-                      value={perfTracks[index]}
-                      onChange={(value) => {
-                        setPerfTracks(previous => previous.map((track, trackIndex) => (
-                          trackIndex === index ? value : track
-                        )));
-                        setPerformanceStatus(previous => previous.map((done, trackIndex) => (
-                          trackIndex === index ? false : done
-                        )));
-                        setPerfProgress(previous => previous.map((progress, trackIndex) => (
-                          trackIndex === index ? 0 : progress
-                        )));
-                        setPerfDurations(previous => previous.map((duration, trackIndex) => (
-                          trackIndex === index ? 0 : duration
-                        )));
-                        if (currentPerformance === null) setSelectedPerformanceIndex(index);
-                      }}
-                      options={audioFiles.map(file => ({
-                        value: file.path,
-                        label: displayTrackName(file.name)
-                      }))}
-                      placeholder="Not assigned"
-                      disabled={currentPerformance === index}
-                      triggerLabel={perfTracks[index] ? 'Change' : undefined}
-                      triggerClassName={perfTracks[index] ? 'is-track-change' : 'is-track-empty'}
-                      triggerAriaLabel={perfTracks[index]
-                        ? `Change track for performance ${index + 1}`
-                        : `Assign track to performance ${index + 1}`}
-                      menuWidth={320}
-                      menuAlign={perfTracks[index] ? 'end' : 'start'}
-                    />
+                    {currentPerformance === index ? (
+                      <div className={`perf-playing-label ${perfPlaying[index] ? '' : 'is-paused'}`} aria-label={perfPlaying[index] ? 'Playing' : 'Paused'}>
+                        <span aria-hidden="true" />
+                        {perfPlaying[index] ? 'Playing' : 'Paused'}
+                      </div>
+                    ) : performanceStatus[index] ? (
+                      <div className="perf-completed-label" aria-label="Completed performance">
+                        <Check size={12} />
+                        <span>Completed performance</span>
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        value={perfTracks[index]}
+                        onChange={(value) => updatePerformanceTrack(index, value)}
+                        onRemove={() => updatePerformanceTrack(index, '')}
+                        options={audioFiles.map(file => ({
+                          value: file.path,
+                          label: displayTrackName(file.name)
+                        }))}
+                        placeholder="Not assigned"
+                        disabled={currentPerformance === index}
+                        triggerClassName={perfTracks[index] ? 'is-track-change' : 'is-track-empty'}
+                        triggerAriaLabel={perfTracks[index]
+                          ? `More options for performance ${position + 1}`
+                          : `Assign track to performance ${position + 1}`}
+                        compactActions={Boolean(perfTracks[index])}
+                        menuWidth={320}
+                        menuAlign={perfTracks[index] ? 'end' : 'start'}
+                      />
+                    )}
                   </div>
 
                   <span className="perf-duration" aria-hidden={!perfTracks[index]}>
@@ -2207,7 +2314,7 @@ function App() {
                     onEnded={() => handlePerformanceEnd(index)}
                     onLoadedMetadata={() => handleLoadedMetadata(index)}
                   />
-                </div>
+                </motion.div>
               ))}
               <button type="button" className="add-performance-button" onClick={addPerformance}>
                 <Plus size={13} />

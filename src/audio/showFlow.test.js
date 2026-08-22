@@ -3,9 +3,12 @@ import {
   finishPerformanceFlow,
   getShowDeckState,
   getShowReadiness,
+  isPerformanceCycleComplete,
   nextPlaylistIndex,
+  promotePerformanceOrder,
   shouldShowRunDeck,
   startPerformanceFlow,
+  visiblePerformanceOrder,
 } from './showFlow';
 
 describe('local show flow', () => {
@@ -137,5 +140,48 @@ describe('local show flow', () => {
     expect(nextPlaylistIndex({ currentIndex: 2, length: 3, repeat: true })).toBe(0);
     expect(nextPlaylistIndex({ currentIndex: 2, length: 3, repeat: false })).toBeNull();
     expect(nextPlaylistIndex({ currentIndex: 0, length: 0, repeat: true })).toBeNull();
+  });
+
+  test('promotes an out-of-order start into the next open lineup slot', () => {
+    expect(promotePerformanceOrder({
+      order: [0, 1, 2, 3],
+      activeIndex: 2,
+      completed: [true, false, false, false],
+    })).toEqual([0, 2, 1, 3]);
+    expect(promotePerformanceOrder({
+      order: [0, 1, 2, 3],
+      activeIndex: 3,
+      completed: [false, false, false, false],
+    })).toEqual([3, 0, 1, 2]);
+  });
+
+  test('resets only after every assigned performance completes', () => {
+    expect(isPerformanceCycleComplete({
+      assignments: [true, true, false, false],
+      completed: [true, false, false, false],
+    })).toBe(false);
+    expect(isPerformanceCycleComplete({
+      assignments: [true, true, false, false],
+      completed: [true, true, false, false],
+    })).toBe(true);
+    expect(isPerformanceCycleComplete({
+      assignments: [false, false, false, false],
+      completed: [false, false, false, false],
+    })).toBe(false);
+  });
+
+  test('hides unused lineup slots after the show starts but keeps an added draft visible', () => {
+    expect(visiblePerformanceOrder({
+      order: [0, 1, 2, 3, 4],
+      assignments: ['a', '', 'b', '', ''],
+      hasStarted: true,
+      draftIndex: 4,
+    })).toEqual([0, 2, 4]);
+
+    expect(visiblePerformanceOrder({
+      order: [0, 1, 2, 3],
+      assignments: ['a', '', '', ''],
+      hasStarted: false,
+    })).toEqual([0, 1, 2, 3]);
   });
 });
