@@ -1,55 +1,69 @@
-// Dreamland Maid Cafe - Service Worker
-// Enables offline functionality for iPad PWA
-
-const CACHE_NAME = 'dreamland-live-v1';
-const urlsToCache = [
+// DreamLIVE offline shell. Imported audio remains in IndexedDB and is never
+// copied into the application cache.
+const CACHE_NAME = 'dreamlive-shell-v4';
+const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/static/css/main.css',
-  '/static/js/main.js',
+  '/asset-manifest.json',
   '/manifest.json',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/icons/Dreamlive.png',
+  '/fonts/poppins-local.css',
+  '/fonts/poppins-400-latin.woff2',
+  '/fonts/poppins-500-latin.woff2',
+  '/fonts/poppins-600-latin.woff2',
+  '/fonts/poppins-700-latin.woff2',
+  '/fonts/poppins-900-latin.woff2',
 ];
 
-// Install service worker and cache assets
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-  );
-});
-
-// Serve cached content when offline
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      }
-    )
-  );
-});
-
-// Update service worker
-self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
+    caches.open(CACHE_NAME).then(async cache => {
+      await cache.addAll(CORE_ASSETS);
+      const manifest = await fetch('/asset-manifest.json').then(response => response.json());
+      await cache.addAll(manifest.entrypoints.map(path => `/${path.replace(/^\.\//, '')}`));
     })
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys()
+      .then(names => Promise.all(names
+        .filter(name => name !== CACHE_NAME)
+        .map(name => caches.delete(name))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', event => {
+  const { request } = event;
+  if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put('/index.html', copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then(cached => cached || fetch(request).then(response => {
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+      }
+      return response;
+    }))
   );
 });

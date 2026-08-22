@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
     <!-- PWA Configuration -->
-    <meta name="theme-color" content="#ff69b4" />
+    <meta name="theme-color" content="#d52c78" />
     <meta name="description" content="Dreamland Maid Cafe - Live Performance Audio Controller for iPad" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
@@ -29,13 +29,7 @@
     <script>
       if ('serviceWorker' in navigator && !window.Capacitor && location.protocol.indexOf('http') === 0) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then((registration) => {
-              console.log('SW registered: ', registration);
-            })
-            .catch((registrationError) => {
-              console.log('SW registration failed: ', registrationError);
-            });
+          navigator.serviceWorker.register('/service-worker.js');
         });
       }
     </script>

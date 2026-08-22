@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useId } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check,
+  ChevronDown,
   FolderOpen,
   Headphones,
   ListMusic,
@@ -26,15 +27,20 @@ import {
   nextPlaylistIndex,
   startPerformanceFlow,
 } from './audio/showFlow';
+import { processAudioFiles } from './audio/importAudio';
+import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import './App.css';
 
 // Searchable Select Component
 function SearchableSelect({ value, onChange, options = [], placeholder, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 320, placement: 'bottom' });
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
+  const searchRef = useRef(null);
+  const listboxId = useId();
 
   const selectedOption = options.find(opt => opt.value === value);
   const filteredOptions = options.filter(opt =>
@@ -64,27 +70,46 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
     }
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handleClickOutside);
       document.addEventListener('keydown', handleEscape);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen]);
 
-  // Calculate position once on open
+  // Keep the popover attached to its trigger and inside the viewport.
   useLayoutEffect(() => {
     if (!isOpen || !triggerRef.current) return;
 
-    const rect = triggerRef.current.getBoundingClientRect();
-    setPosition({
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-      width: rect.width
-    });
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPosition(getPopoverPosition({
+        rect,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      }));
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    const focusFrame = window.requestAnimationFrame(() => searchRef.current?.focus());
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const selectedIndex = filteredOptions.findIndex(option => option.value === value);
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : (filteredOptions.length ? 0 : -1));
+  }, [isOpen, searchTerm, value, filteredOptions.length]);
 
   const handleSelect = (optionValue) => {
     onChange(optionValue);
@@ -92,21 +117,43 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
     setSearchTerm('');
   };
 
+  const openSelect = () => {
+    if (!disabled) setIsOpen(true);
+  };
+
+  const handleTriggerKeyDown = event => {
+    if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key) || disabled) return;
+    event.preventDefault();
+    openSelect();
+  };
+
+  const handleSearchKeyDown = event => {
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      setActiveIndex(index => nextOptionIndex(index, event.key, filteredOptions.length));
+    } else if (event.key === 'Enter' && activeIndex >= 0) {
+      event.preventDefault();
+      handleSelect(filteredOptions[activeIndex].value);
+    }
+  };
+
   const dropdownContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           ref={dropdownRef}
-          initial={{ opacity: 0, y: -5, scale: 0.95 }}
+          initial={{ opacity: 0, y: position.placement === 'top' ? 4 : -4, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -5, scale: 0.95 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
+          exit={{ opacity: 0, y: position.placement === 'top' ? 4 : -4, scale: 0.985 }}
+          transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           className="select-dropdown"
+          data-placement={position.placement}
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: `${position.top}px`,
             left: `${position.left}px`,
             width: `${position.width}px`,
+            '--menu-max-height': `${position.maxHeight}px`,
           }}
         >
           <div className="search-input-wrapper">
@@ -114,10 +161,14 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
             <input
               type="text"
               className="search-input"
-              placeholder="Search tracks..."
+              placeholder="Search tracks…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              ref={searchRef}
               aria-label="Search audio tracks"
+              aria-controls={listboxId}
+              aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
             />
             {searchTerm && (
               <button
@@ -130,20 +181,23 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
               </button>
             )}
           </div>
-          <div className="select-options" role="listbox" aria-label="Audio tracks">
+          <div id={listboxId} className="select-options" role="listbox" aria-label="Audio tracks">
             {filteredOptions.length === 0 ? (
               <div className="no-results">No tracks found</div>
             ) : (
-              filteredOptions.map((option) => (
+              filteredOptions.map((option, index) => (
                 <button
                   key={option.value}
+                  id={`${listboxId}-${index}`}
                   type="button"
-                  className={`select-option ${option.value === value ? 'selected' : ''}`}
+                  className={`select-option ${option.value === value ? 'selected' : ''} ${index === activeIndex ? 'active' : ''}`}
                   onClick={() => handleSelect(option.value)}
+                  onPointerEnter={() => setActiveIndex(index)}
                   role="option"
                   aria-selected={option.value === value}
                 >
-                  {option.label}
+                  <span>{option.label}</span>
+                  {option.value === value && <Check size={16} aria-hidden="true" />}
                 </button>
               ))
             )}
@@ -161,14 +215,17 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
           type="button"
           className="select-trigger"
           onClick={() => !disabled && setIsOpen(!isOpen)}
+          onKeyDown={handleTriggerKeyDown}
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
+          aria-controls={isOpen ? listboxId : undefined}
+          title={selectedOption ? selectedOption.label : placeholder}
         >
           <span className="select-value">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
-          <Search size={16} className="select-icon" />
+          <ChevronDown size={16} className="select-icon" />
         </button>
       </div>
       {ReactDOM.createPortal(dropdownContent, document.body)}
@@ -189,11 +246,13 @@ function SakuraDrift() {
 const DEFAULT_AUDIO_FILES = [];
 const DEFAULT_MASTER_VOLUME = 0.82;
 const MASTER_LEVEL_KEY = 'dreamlive-master-level-v1';
+const displayTrackName = (name) => name.replace(/\.(mp3|m4a|aac|wav|ogg|flac)$/i, '');
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
   const [customFolder, setCustomFolder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [importState, setImportState] = useState({ active: false, completed: 0, total: 0 });
 
   // Background music state
   const [bgPlaylist, setBgPlaylist] = useState([]);
@@ -504,6 +563,15 @@ function App() {
   }, [resetConfirmOpen]);
 
   useEffect(() => {
+    if (!soundCheckOpen && !resetConfirmOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [soundCheckOpen, resetConfirmOpen]);
+
+  useEffect(() => {
     const masterGain = masterGainNodeRef.current;
     const context = audioContextRef.current;
     if (!masterGain) return;
@@ -654,6 +722,7 @@ function App() {
   };
 
   const handleSelectFolder = async () => {
+    if (importState.active) return;
     try {
       if (window.electronAPI) {
         // Desktop Electron version
@@ -668,29 +737,49 @@ function App() {
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
-        input.accept = 'audio/*,.mp3,.wav,.ogg,.m4a,.flac';
+        input.accept = 'audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac';
 
         input.onchange = async (e) => {
           const files = Array.from(e.target.files);
           if (files.length === 0) return;
-          const { accepted, skipped } = await processFilesForPWA(files);
-          if (accepted.length === 0) {
-            showNotice('No playable audio files were found.', 'error');
-            return;
+          setImportState({ active: true, completed: 0, total: files.length });
+          try {
+            const { accepted, rejected } = await processAudioFiles(files, {
+              onProgress: ({ completed, total }) => {
+                setImportState({ active: true, completed, total });
+              },
+            });
+            if (accepted.length === 0) {
+              showNotice("These files couldn't be opened on this device. Try MP3, AAC, M4A, or WAV.", 'error');
+              return;
+            }
+
+            const known = new Set(audioFiles.map(file => file.id));
+            const additions = accepted.filter(file => !known.has(file.id));
+            const merged = [...audioFiles, ...additions]
+              .sort((a, b) => a.name.localeCompare(b.name));
+            accepted.filter(file => known.has(file.id)).forEach(file => URL.revokeObjectURL(file.path));
+
+            if (additions.length === 0) {
+              showNotice('Those tracks are already in your library.');
+              return;
+            }
+
+            setAudioFiles(merged);
+            setCustomFolder(`${merged.length} track${merged.length === 1 ? '' : 's'} ready`);
+            const rejectedCopy = rejected.length > 0
+              ? ` ${rejected.length} couldn't be opened.`
+              : '';
+            showNotice(`Added ${additions.length} track${additions.length === 1 ? '' : 's'}.${rejectedCopy}`);
+
+            // Save to IndexedDB for persistence
+            await saveFilesToIndexedDB(merged);
+          } catch (error) {
+            console.error('Audio import failed:', error);
+            showNotice("Audio import stopped unexpectedly. Try the files again.", 'error');
+          } finally {
+            setImportState(previous => ({ ...previous, active: false }));
           }
-
-          const known = new Set(audioFiles.map(file => file.id));
-          const additions = accepted.filter(file => !known.has(file.id));
-          const merged = [...audioFiles, ...additions]
-            .sort((a, b) => a.name.localeCompare(b.name));
-          accepted.filter(file => known.has(file.id)).forEach(file => URL.revokeObjectURL(file.path));
-          setAudioFiles(merged);
-          setCustomFolder(`${merged.length} track${merged.length === 1 ? '' : 's'} ready`);
-          const skippedCopy = skipped > 0 ? ` · ${skipped} skipped` : '';
-          showNotice(`Added ${additions.length} track${additions.length === 1 ? '' : 's'}${skippedCopy}`);
-
-          // Save to IndexedDB for persistence
-          await saveFilesToIndexedDB(merged);
         };
 
         input.click();
@@ -729,7 +818,6 @@ function App() {
         store.clear();
         files.forEach(file => store.put(file));
       });
-      console.log('Files saved to IndexedDB');
       return true;
     } catch (error) {
       console.error('Error saving to IndexedDB:', error);
@@ -768,70 +856,10 @@ function App() {
     }
   };
 
-  const inspectAudioFile = (blobUrl) => new Promise((resolve, reject) => {
-    const probe = document.createElement('audio');
-    const timeout = window.setTimeout(() => finish(new Error('Audio metadata timed out.')), 10000);
-    let settled = false;
-
-    const finish = (error, duration = 0) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      probe.onloadedmetadata = null;
-      probe.onerror = null;
-      probe.removeAttribute('src');
-      if (error) reject(error);
-      else resolve(duration);
-    };
-
-    probe.preload = 'metadata';
-    probe.onloadedmetadata = () => {
-      const duration = Number.isFinite(probe.duration) ? probe.duration : 0;
-      if (duration <= 0) finish(new Error('Audio file has no playable duration.'));
-      else finish(null, duration);
-    };
-    probe.onerror = () => finish(new Error('Audio format is not playable on this device.'));
-    probe.src = blobUrl;
-  });
-
-  const processFilesForPWA = async (files) => {
-    const accepted = [];
-    let skipped = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const supportedName = file.name.match(/\.(mp3|wav|ogg|m4a|aac|flac)$/i);
-      if (file.size <= 0 || (!file.type.startsWith('audio/') && !supportedName)) {
-        skipped += 1;
-        continue;
-      }
-
-      const blobUrl = URL.createObjectURL(file);
-      try {
-        const duration = await inspectAudioFile(blobUrl);
-        accepted.push({
-          id: `file-${file.name}-${file.size}-${file.lastModified}`,
-          name: file.name,
-          path: blobUrl,
-          size: file.size,
-          type: file.type,
-          duration,
-          fileData: file,
-        });
-      } catch (error) {
-        console.warn(`Skipping ${file.name}:`, error);
-        URL.revokeObjectURL(blobUrl);
-        skipped += 1;
-      }
-    }
-
-    return {
-      accepted: accepted.sort((a, b) => a.name.localeCompare(b.name)),
-      skipped,
-    };
+  const trackName = (path) => {
+    const name = audioFiles.find(file => file.path === path)?.name;
+    return name ? displayTrackName(name) : 'Unknown track';
   };
-
-  const trackName = (path) => audioFiles.find(file => file.path === path)?.name || 'Unknown track';
 
   const addBackgroundTrack = (path) => {
     if (!path || bgPlaylist.includes(path)) return;
@@ -1366,7 +1394,7 @@ function App() {
         </div>
       )}
 
-      <header className={`app-header ${runDeck ? 'run-deck' : ''}`}>
+      <header className={`app-header ${runDeck ? 'run-deck' : ''} ${(bgPlaying || currentPerformance !== null || isFading) ? 'audio-active' : ''}`}>
         <div className="header-content">
           <div className="logo-container">
             <img
@@ -1379,9 +1407,17 @@ function App() {
         </div>
         <div className="header-controls">
           {!runDeck && (
-            <button className="folder-btn" onClick={handleSelectFolder} title="Add licensed tracks to this device">
+            <button
+              className="folder-btn"
+              onClick={handleSelectFolder}
+              title="Add licensed tracks to this device"
+              disabled={importState.active}
+              aria-busy={importState.active}
+            >
               <FolderOpen size={20} />
-              <span>Import audio</span>
+              <span>{importState.active
+                ? `Checking ${importState.completed}/${importState.total}`
+                : 'Import audio'}</span>
             </button>
           )}
           {deckState.mode !== 'prep' && (
@@ -1404,7 +1440,11 @@ function App() {
             <span>{soundCheckComplete ? 'Output ready' : 'Sound check'}</span>
             <strong>{Math.round(masterVolume * 100)}%</strong>
           </button>
-          <button className="stop-audio-btn" onClick={() => stopAllAudio()} title="Stop all audio">
+          <button
+            className={`stop-audio-btn ${(bgPlaying || currentPerformance !== null || isFading) ? 'is-active' : ''}`}
+            onClick={() => stopAllAudio()}
+            title="Stop all audio"
+          >
             <Square size={18} fill="currentColor" />
             <span>Stop audio</span>
           </button>
@@ -1414,7 +1454,7 @@ function App() {
       {soundCheckOpen && (
         <div
           className="output-dialog-backdrop"
-          onMouseDown={event => {
+          onPointerDown={event => {
             if (event.target === event.currentTarget) closeSoundCheck();
           }}
         >
@@ -1446,7 +1486,7 @@ function App() {
             <div className="output-step">
               <span className="output-step-number">1</span>
               <div className="output-step-copy">
-                <strong>Set device volume</strong>
+                <strong>Device baseline</strong>
                 <span>Use the side buttons and leave it at 7 of 10 bars.</span>
               </div>
               <div className="device-level-meter" aria-label="Device volume target: 7 of 10 bars">
@@ -1459,7 +1499,7 @@ function App() {
             <div className="output-step output-step-master">
               <span className="output-step-number">2</span>
               <div className="output-step-copy">
-                <strong>Set DreamLIVE output</strong>
+                <strong>DreamLIVE output</strong>
                 <span>This controls every BGM and performance track together.</span>
               </div>
               <div className="master-level-control">
@@ -1500,7 +1540,7 @@ function App() {
               </button>
               <button type="button" className="confirm-output-btn" onClick={confirmSoundCheck}>
                 <Check size={18} />
-                <span>Sound is clear</span>
+                <span>Confirm clear sound</span>
               </button>
             </div>
           </section>
@@ -1510,7 +1550,7 @@ function App() {
       {resetConfirmOpen && (
         <div
           className="output-dialog-backdrop reset-dialog-backdrop"
-          onMouseDown={event => {
+          onPointerDown={event => {
             if (event.target === event.currentTarget) closeResetConfirmation();
           }}
         >
@@ -1552,7 +1592,7 @@ function App() {
         <div className="show-phase-message">
           <p className="show-phase-detail">{phaseDetail}</p>
           {showError && (
-            <button type="button" onClick={() => setShowError('')}>Acknowledge</button>
+            <button type="button" onClick={() => setShowError('')}>Dismiss alert</button>
           )}
         </div>
         <div className="show-now-playing">
@@ -1570,7 +1610,7 @@ function App() {
       {isLoading ? (
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>Loading audio files...</p>
+          <p>Loading your audio library…</p>
         </div>
       ) : (
         <>
@@ -1598,8 +1638,11 @@ function App() {
                   <FolderOpen size={20} />
                   <div>
                     <strong>No tracks on this device ・ 音源がありません</strong>
-                    <span>Import audio to build the show.</span>
+                    <span>Import licensed audio to build the show.</span>
                   </div>
+                  <button type="button" onClick={handleSelectFolder} disabled={importState.active}>
+                    {importState.active ? `Checking ${importState.completed}/${importState.total}` : 'Import audio'}
+                  </button>
                 </div>
               )}
               <div className="bg-music-container">
@@ -1614,7 +1657,7 @@ function App() {
                     onChange={addBackgroundTrack}
                     options={audioFiles.filter(file => !bgPlaylist.includes(file.path)).map(file => ({
                       value: file.path,
-                      label: file.name
+                      label: displayTrackName(file.name)
                     }))}
                     placeholder="Add BGM track"
                     disabled={audioFiles.length === 0 || currentPerformance !== null || isFading}
@@ -1852,7 +1895,7 @@ function App() {
                       }}
                       options={audioFiles.map(file => ({
                         value: file.path,
-                        label: file.name
+                        label: displayTrackName(file.name)
                       }))}
                       placeholder="Assign track"
                       disabled={currentPerformance !== null || isFading}
