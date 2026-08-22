@@ -4,6 +4,7 @@ import {
   getShowDeckState,
   getShowReadiness,
   nextPlaylistIndex,
+  shouldShowRunDeck,
   startPerformanceFlow,
 } from './showFlow';
 
@@ -86,6 +87,12 @@ describe('local show flow', () => {
       nextPerformanceIndex: 0,
       remainingAssignedCount: 1,
     });
+  });
+
+  test('keeps the operating players mounted while an imported library is being assigned', () => {
+    expect(shouldShowRunDeck({ mode: 'prep', hasAudio: true })).toBe(true);
+    expect(shouldShowRunDeck({ mode: 'prep', hasAudio: false })).toBe(false);
+    expect(shouldShowRunDeck({ mode: 'ready', hasAudio: false })).toBe(true);
   });
 
   test('focuses the earliest assigned incomplete performance when ready', () => {

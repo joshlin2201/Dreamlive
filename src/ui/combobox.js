@@ -3,12 +3,15 @@ export function getPopoverPosition({
   viewportWidth,
   viewportHeight,
   preferredHeight = 320,
+  preferredWidth = rect.width,
+  align = 'start',
   gutter = 8,
   gap = 8,
 }) {
-  const width = Math.min(rect.width, viewportWidth - (gutter * 2));
+  const width = Math.min(Math.max(rect.width, preferredWidth), viewportWidth - (gutter * 2));
+  const anchorLeft = align === 'end' ? rect.right - width : rect.left;
   const left = Math.min(
-    Math.max(rect.left, gutter),
+    Math.max(anchorLeft, gutter),
     viewportWidth - gutter - width,
   );
   const availableBelow = viewportHeight - rect.bottom - gutter - gap;

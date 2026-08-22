@@ -73,3 +73,7 @@ export function getShowDeckState({
     remainingAssignedCount: incompleteAssigned.length,
   };
 }
+
+export function shouldShowRunDeck({ mode, hasAudio }) {
+  return mode !== 'prep' || Boolean(hasAudio);
+}

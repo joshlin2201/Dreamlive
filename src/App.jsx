@@ -21,6 +21,7 @@ import {
   getShowDeckState,
   getShowReadiness,
   nextPlaylistIndex,
+  shouldShowRunDeck,
   startPerformanceFlow,
 } from './audio/showFlow';
 import {
@@ -44,7 +45,18 @@ import BgmQueue from './components/BgmQueue';
 import './App.css';
 
 // Searchable Select Component
-function SearchableSelect({ value, onChange, options = [], placeholder, disabled }) {
+function SearchableSelect({
+  value,
+  onChange,
+  options = [],
+  placeholder,
+  disabled,
+  triggerLabel,
+  triggerClassName = '',
+  triggerAriaLabel,
+  menuWidth,
+  menuAlign,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -103,6 +115,8 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
         rect,
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
+        preferredWidth: menuWidth,
+        align: menuAlign,
       }));
     };
     updatePosition();
@@ -115,7 +129,7 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, menuAlign, menuWidth]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -226,7 +240,7 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
 
   return (
     <>
-      <div className="searchable-select">
+      <div className={`searchable-select ${triggerClassName}`}>
         <button
           ref={triggerRef}
           type="button"
@@ -237,9 +251,10 @@ function SearchableSelect({ value, onChange, options = [], placeholder, disabled
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
+          aria-label={triggerAriaLabel}
         >
           <span className="select-value">
-            {selectedOption ? selectedOption.label : placeholder}
+            {triggerLabel || (selectedOption ? selectedOption.label : placeholder)}
           </span>
           <ChevronDown size={16} className="select-icon" />
         </button>
@@ -299,6 +314,7 @@ function App() {
   const [bgVolume, setBgVolume] = useState(0.5);
   const [pendingBgTrack, setPendingBgTrack] = useState('');
   const pendingBgTrackRef = useRef('');
+  const [bgQueueExpanded, setBgQueueExpanded] = useState(true);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const bgAudioRef = useRef(null);
   const bgTrack = bgPlaylist[bgIndex] || '';
@@ -310,10 +326,15 @@ function App() {
   const [perfProgress, setPerfProgress] = useState(() => performanceArray(0));
   const [perfDurations, setPerfDurations] = useState(() => performanceArray(0));
   const [currentPerformance, setCurrentPerformance] = useState(null);
+  const [selectedPerformanceIndex, setSelectedPerformanceIndex] = useState(null);
   const [performanceStatus, setPerformanceStatus] = useState(() => performanceArray(false));
   const perfAudioRefs = useRef(performanceArray(null));
   const [showPhase, setShowPhase] = useState(SHOW_PHASE.SETUP);
   const [showError, setShowError] = useState('');
+
+  useEffect(() => {
+    setBgQueueExpanded(currentPerformance === null);
+  }, [currentPerformance]);
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [libraryRemoval, setLibraryRemoval] = useState(null);
@@ -1449,6 +1470,7 @@ function App() {
     )));
 
     setCurrentPerformance(null);
+    setSelectedPerformanceIndex(null);
     try {
       await finishPerformanceFlow({
         restoreBackground: fadeInBackground,
@@ -1522,6 +1544,7 @@ function App() {
     perfSourceNodeRefs.current = performanceArray(null);
     seekTimeoutRefs.current.perf = performanceArray(null);
     setCurrentPerformance(null);
+    setSelectedPerformanceIndex(null);
     setShowPhase(SHOW_PHASE.SETUP);
     setResetConfirmOpen(false);
     showNotice('Performances cleared. BGM queue and imported tracks were kept.');
@@ -1558,6 +1581,7 @@ function App() {
       setPerfProgress(previous => previous.map(() => 0));
       setPerformanceStatus(previous => previous.map(() => false));
       setCurrentPerformance(null);
+      setSelectedPerformanceIndex(null);
       setIsFading(false);
       if (shouldRestoreBackground) await fadeInBackground();
       setShowPhase(assignedCount > 0 ? SHOW_PHASE.READY : SHOW_PHASE.SETUP);
@@ -1635,8 +1659,16 @@ function App() {
     completed: performanceStatus,
     currentPerformance,
   });
-  const runDeck = deckState.mode !== 'prep';
-  const focusPerformanceIndex = deckState.activePerformanceIndex ?? deckState.nextPerformanceIndex;
+  const runDeck = shouldShowRunDeck({
+    mode: deckState.mode,
+    hasAudio: audioFiles.length > 0,
+  });
+  const selectedReadyPerformance = selectedPerformanceIndex !== null
+    && Boolean(perfTracks[selectedPerformanceIndex])
+    && !performanceStatus[selectedPerformanceIndex]
+    ? selectedPerformanceIndex
+    : deckState.nextPerformanceIndex;
+  const focusPerformanceIndex = deckState.activePerformanceIndex ?? selectedReadyPerformance;
 
   const libraryRemovalPaths = libraryRemoval?.paths || [];
   const libraryRemovalSet = new Set(libraryRemovalPaths);
@@ -1790,10 +1822,28 @@ function App() {
         </div>
       ) : (
         <>
-          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''} ${currentPerformance !== null && (perfPlaying[currentPerformance] || isFading) ? 'is-visualizing' : ''}`}>
-            <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''} ${currentPerformance !== null || isFading ? 'is-held' : ''}`}>
+          <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck is-setup-open' : ''} ${currentPerformance !== null ? 'is-live' : ''} ${bgPlaying && currentPerformance === null ? 'is-bgm-active' : ''} ${bgQueueExpanded ? 'is-bgm-expanded' : ''} ${currentPerformance !== null && (perfPlaying[currentPerformance] || isFading) ? 'is-visualizing' : ''}`}>
+            <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''} ${currentPerformance !== null || isFading ? 'is-held' : ''} ${bgQueueExpanded ? 'queue-expanded' : 'queue-collapsed'}`}>
               <div className="section-header">
-                <h2 className="section-title">BGM <span className="japanese-label">店内音楽</span></h2>
+                {runDeck && currentPerformance !== null ? (
+                  <button
+                    type="button"
+                    className="section-title bgm-header-toggle"
+                    onClick={() => setBgQueueExpanded(expanded => !expanded)}
+                    aria-expanded={bgQueueExpanded}
+                    aria-controls="dreamlive-bgm-queue"
+                    aria-label={`${bgQueueExpanded ? 'Collapse' : 'Expand'} BGM playlist`}
+                  >
+                    <span className="bgm-header-title">BGM <span className="japanese-label">バックグラウンド</span></span>
+                    <span className="bgm-header-expand-cue" aria-hidden="true">
+                      <span>Playlist</span>
+                      <strong>{bgPlaylist.length}</strong>
+                      <ChevronDown size={14} />
+                    </span>
+                  </button>
+                ) : (
+                  <h2 className="section-title">BGM <span className="japanese-label">バックグラウンド</span></h2>
+                )}
                 <div className="bgm-header-actions">
                   <details className="bgm-level-menu bgm-header-level">
                     <summary aria-label={`BGM level ${Math.round(bgVolume * 100)} percent`}>
@@ -1827,7 +1877,7 @@ function App() {
                   </button>
                 </div>
               )}
-              <div className="bg-music-container">
+              <div id="dreamlive-bgm-queue" className="bg-music-container">
                 {runDeck && (
                   <div className={`bgm-visualizer-slot ${bgPlaying && currentPerformance === null ? 'is-active' : ''}`}>
                     <AudioVisualizer
@@ -1871,7 +1921,7 @@ function App() {
               </div>
             </section>
 
-            <section className="performances-section">
+            <section className={`performances-section ${currentPerformance !== null ? 'is-stage-active' : ''}`}>
               <div className="section-header">
                 <div>
                   <h2 className="section-title">Performances ・ パフォーマンス</h2>
@@ -1979,28 +2029,28 @@ function App() {
                       />
                     </div>
                   </>
-                ) : deckState.nextPerformanceIndex !== null ? (
+                ) : focusPerformanceIndex !== null ? (
                   <>
                     <div className="run-focus-heading ready-heading">
                       <div>
                         <span className="run-focus-kicker">Next on stage <span className="japanese-label">ネクストステージ</span></span>
-                        <h2>{trackName(perfTracks[deckState.nextPerformanceIndex])}</h2>
+                        <h2>{trackName(perfTracks[focusPerformanceIndex])}</h2>
                       </div>
                     </div>
                     <div className="run-action-row">
                       <button
                         type="button"
                         className="run-primary-action"
-                        onClick={() => startPerformance(deckState.nextPerformanceIndex)}
-                        disabled={isFading || !trackSource(perfTracks[deckState.nextPerformanceIndex])}
+                        onClick={() => startPerformance(focusPerformanceIndex)}
+                        disabled={isFading || !trackSource(perfTracks[focusPerformanceIndex])}
                       >
                         <Play size={18} />
                         <span>Start</span>
                       </button>
                       <details className="run-level-menu">
-                        <summary aria-label={`Performance level ${Math.round(perfVolumes[deckState.nextPerformanceIndex] * 100)} percent`}>
+                        <summary aria-label={`Performance level ${Math.round(perfVolumes[focusPerformanceIndex] * 100)} percent`}>
                           <Volume2 size={17} aria-hidden="true" />
-                          <span>{Math.round(perfVolumes[deckState.nextPerformanceIndex] * 100)}%</span>
+                          <span>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</span>
                         </summary>
                         <label className="run-level-control">
                           <input
@@ -2008,11 +2058,11 @@ function App() {
                             min="0"
                             max="1"
                             step="0.01"
-                            value={perfVolumes[deckState.nextPerformanceIndex]}
-                            onChange={event => handlePerfVolumeChange(deckState.nextPerformanceIndex, event.target.value)}
+                            value={perfVolumes[focusPerformanceIndex]}
+                            onChange={event => handlePerfVolumeChange(focusPerformanceIndex, event.target.value)}
                             aria-label="Next performance volume"
                           />
-                          <strong>{Math.round(perfVolumes[deckState.nextPerformanceIndex] * 100)}%</strong>
+                          <strong>{Math.round(perfVolumes[focusPerformanceIndex] * 100)}%</strong>
                         </label>
                       </details>
                     </div>
@@ -2021,14 +2071,20 @@ function App() {
                       <input
                         type="range"
                         min="0"
-                        max={perfDurations[deckState.nextPerformanceIndex] || 1}
+                        max={perfDurations[focusPerformanceIndex] || 1}
                         value="0"
                         disabled
-                        aria-label={`Performance ${deckState.nextPerformanceIndex + 1} ready`}
+                        aria-label={`Performance ${focusPerformanceIndex + 1} ready`}
                       />
-                      <span>{formatTime(perfDurations[deckState.nextPerformanceIndex])}</span>
+                      <span>{formatTime(perfDurations[focusPerformanceIndex])}</span>
                     </div>
                   </>
+                ) : assignedCount === 0 ? (
+                  <div className="run-empty-state">
+                    <span className="run-focus-kicker">Stage ready <span className="japanese-label">ステージ準備</span></span>
+                    <h2>Not assigned</h2>
+                    <p>Choose a track in the lineup below.</p>
+                  </div>
                 ) : (
                   <div className="run-complete-state">
                     <Check size={28} />
@@ -2075,7 +2131,8 @@ function App() {
                 <div
                   key={index}
                   className={`performance-card ${currentPerformance === index ? 'active' : ''
-                    } ${performanceStatus[index] ? 'completed' : ''} ${perfTracks[index] ? '' : 'is-empty'} ${currentPerformance === null && perfTracks[index] ? 'has-row-action' : ''}`}
+                    } ${currentPerformance === null && focusPerformanceIndex === index && !performanceStatus[index] ? 'is-focused' : ''
+                    } ${performanceStatus[index] ? 'completed' : ''} ${perfTracks[index] ? '' : 'is-empty'}`}
                   aria-label={`Performance ${index + 1}`}
                 >
                   <div className="perf-header">
@@ -2093,7 +2150,19 @@ function App() {
                     )}
                   </div>
 
-                  <div className="perf-select">
+                  <div className={`perf-select ${perfTracks[index] ? 'is-assigned' : ''}`}>
+                    {perfTracks[index] && (
+                      <button
+                        type="button"
+                        className="perf-track-focus"
+                        onClick={() => setSelectedPerformanceIndex(index)}
+                        disabled={currentPerformance !== null || performanceStatus[index] || isFading}
+                        aria-label={`Select performance ${index + 1}: ${trackName(perfTracks[index])}`}
+                        aria-pressed={currentPerformance === null && focusPerformanceIndex === index}
+                      >
+                        <span>{trackName(perfTracks[index])}</span>
+                      </button>
+                    )}
                     <SearchableSelect
                       value={perfTracks[index]}
                       onChange={(value) => {
@@ -2109,33 +2178,27 @@ function App() {
                         setPerfDurations(previous => previous.map((duration, trackIndex) => (
                           trackIndex === index ? 0 : duration
                         )));
+                        if (currentPerformance === null) setSelectedPerformanceIndex(index);
                       }}
                       options={audioFiles.map(file => ({
                         value: file.path,
                         label: displayTrackName(file.name)
                       }))}
-                      placeholder="Assign track"
+                      placeholder="Not assigned"
                       disabled={currentPerformance === index}
+                      triggerLabel={perfTracks[index] ? 'Change' : undefined}
+                      triggerClassName={perfTracks[index] ? 'is-track-change' : 'is-track-empty'}
+                      triggerAriaLabel={perfTracks[index]
+                        ? `Change track for performance ${index + 1}`
+                        : `Assign track to performance ${index + 1}`}
+                      menuWidth={320}
+                      menuAlign={perfTracks[index] ? 'end' : 'start'}
                     />
                   </div>
 
                   <span className="perf-duration" aria-hidden={!perfTracks[index]}>
                     {perfTracks[index] ? formatTime(perfDurations[index]) : ''}
                   </span>
-
-                  {currentPerformance === null && perfTracks[index] && (
-                    <button
-                      type="button"
-                      className="perf-row-start"
-                      onClick={() => startPerformance(index)}
-                      disabled={isFading || !trackSource(perfTracks[index])}
-                      aria-label={`${performanceStatus[index] ? 'Replay' : 'Start'} performance ${index + 1}`}
-                      title={`${performanceStatus[index] ? 'Replay' : 'Start'} performance ${index + 1}`}
-                    >
-                      <Play size={13} fill="currentColor" />
-                      <span>{performanceStatus[index] ? 'Replay' : 'Start'}</span>
-                    </button>
-                  )}
 
                   <audio
                     ref={el => perfAudioRefs.current[index] = el}

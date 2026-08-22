@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, GripVertical, ListPlus, MoreHorizontal, Pause, Play, Shuffle, Trash2 } from 'lucide-react';
+import { Check, GripVertical, ListPlus, MoreVertical, Pause, Play, Shuffle, Trash2 } from 'lucide-react';
 import { playlistDisplayOrder, queueDisplacement } from '../audio/playlist';
 
 function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, playbackLocked, queueOnly = false, playing, showPlayback = true, trackName, onPlay, onQueue, onToggle, onMove, onRemove, onShuffle }) {
@@ -17,6 +17,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
     originX: 0,
     originY: 0,
     bounds: null,
+    pointerOffsetX: 0,
   });
   const dragRef = useRef(emptyDrag());
   const queueRef = useRef(null);
@@ -34,7 +35,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
   useEffect(() => () => clearDragTimer(dragRef.current), []);
 
   useEffect(() => {
-    queueRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    queueRef.current?.scrollTo?.({ top: 0, left: 0, behavior: 'smooth' });
     setRowMenu(null);
   }, [currentIndex]);
 
@@ -71,7 +72,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
     }
     const bounds = event.currentTarget.getBoundingClientRect();
     const width = 176;
-    const height = showPlayback ? 94 : 50;
+    const height = showPlayback && queueOnly ? 94 : 50;
     const left = Math.max(8, Math.min(window.innerWidth - width - 8, bounds.right - width));
     const top = window.innerHeight - bounds.bottom > height + 8
       ? bounds.bottom + 4
@@ -96,6 +97,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
       originX: event.clientX,
       originY: event.clientY,
       bounds,
+      pointerOffsetX: bounds ? event.clientX - bounds.left : 0,
     };
     if (event.pointerType === 'touch') {
       dragRef.current.activationTimer = window.setTimeout(() => {
@@ -121,6 +123,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
         left: drag.bounds.left,
         top: drag.bounds.top,
         width: drag.bounds.width,
+        pointerOffsetX: drag.pointerOffsetX,
         pointerOffset: drag.originY - drag.bounds.top,
         path: playlist[drag.from],
       });
@@ -128,6 +131,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
     event.preventDefault();
     setDragGhost(previous => previous ? {
       ...previous,
+      left: event.clientX - previous.pointerOffsetX,
       top: event.clientY - previous.pointerOffset,
     } : previous);
     const row = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-queue-index]');
@@ -223,18 +227,35 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
               <GripVertical size={15} />
               <span>{String(position + 1).padStart(2, '0')}</span>
             </button>
-            <button
-              type="button"
-              className="queue-track-copy"
-              onClick={() => activateTrack(index)}
-              disabled={playbackLocked}
-              aria-label={queueOnly
-                ? `Select ${trackName(path)} to play after performance`
-                : (current && playing ? `Pause ${trackName(path)}` : `Play ${trackName(path)} from here`)}
-            >
-              <strong title={trackName(path)}>{trackName(path)}</strong>
-              <span>{pending ? 'Queued next' : (current ? 'Current track' : 'Queued')}</span>
-            </button>
+            <div className="queue-track-cluster">
+              {showPlayback && !queueOnly && (
+                <button
+                  type="button"
+                  className="queue-playback-button"
+                  onClick={() => activateTrack(index)}
+                  disabled={playbackLocked}
+                  aria-label={current && playing
+                    ? `Pause ${trackName(path)}`
+                    : `Play ${trackName(path)} from here`}
+                  title={current && playing ? 'Pause' : 'Play'}
+                >
+                  {current && playing
+                    ? <Pause size={16} fill="currentColor" />
+                    : <Play size={16} fill="currentColor" />}
+                </button>
+              )}
+              <button
+                type="button"
+                className="queue-track-copy"
+                onClick={() => activateTrack(index)}
+                disabled={playbackLocked}
+                aria-label={queueOnly
+                  ? `Select ${trackName(path)} to play after performance`
+                  : (current && playing ? `Pause ${trackName(path)}` : `Play ${trackName(path)} from here`)}
+              >
+                <strong title={trackName(path)}>{trackName(path)}</strong>
+              </button>
+            </div>
             <div className="queue-row-actions">
               <button
                 type="button"
@@ -244,7 +265,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
                 aria-expanded={rowMenu?.index === index}
                 title="More options"
               >
-                <MoreHorizontal size={17} />
+                <MoreVertical size={17} />
               </button>
             </div>
           </div>
@@ -273,7 +294,7 @@ function BgmQueue({ playlist, currentIndex, heldIndex, pendingIndex = null, play
         aria-label={`Options for ${trackName(playlist[rowMenu.index])}`}
         style={{ left: rowMenu.left, top: rowMenu.top, width: rowMenu.width }}
       >
-        {showPlayback && (
+        {showPlayback && queueOnly && (
           <button
             type="button"
             role="menuitem"

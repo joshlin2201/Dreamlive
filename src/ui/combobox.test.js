@@ -29,6 +29,20 @@ describe('track combobox helpers', () => {
     expect(position.placement).toBe('bottom');
   });
 
+  test('gives a compact end-aligned trigger a usable menu without overflowing', () => {
+    const position = getPopoverPosition({
+      rect: { top: 100, bottom: 136, left: 874, right: 964, width: 90 },
+      viewportWidth: 1024,
+      viewportHeight: 768,
+      preferredWidth: 320,
+      align: 'end',
+    });
+
+    expect(position.width).toBe(320);
+    expect(position.left).toBe(644);
+    expect(position.left + position.width).toBeLessThanOrEqual(1016);
+  });
+
   test('moves keyboard focus through options without leaving the list', () => {
     expect(nextOptionIndex(-1, 'ArrowDown', 4)).toBe(0);
     expect(nextOptionIndex(3, 'ArrowDown', 4)).toBe(0);
