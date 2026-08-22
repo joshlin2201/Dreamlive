@@ -28,6 +28,7 @@ import {
   movePlaylistItem,
   previousPlaylistAction,
   removePlaylistItem,
+  shufflePlaylist,
 } from './audio/playlist';
 import { processAudioFiles } from './audio/importAudio';
 import { CLICKLESS_MUTE_SECONDS, scheduleGainEnvelope } from './audio/gainEnvelope';
@@ -36,7 +37,6 @@ import AudioVisualizer from './components/AudioVisualizer';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
 import BgmQueue from './components/BgmQueue';
 import BgmTransport from './components/BgmTransport';
-import LiveSetupDock from './components/LiveSetupDock';
 import './App.css';
 
 // Searchable Select Component
@@ -252,16 +252,16 @@ function SakuraDrift() {
 function SakuraSoundscape({ active }) {
   return (
     <div className={`sound-sakura-layer ${active ? 'is-active' : ''}`} aria-hidden="true">
-      {Array.from({ length: 24 }, (_, index) => (
+      {Array.from({ length: 36 }, (_, index) => (
         <i
           className="sound-sakura-petal"
           key={index}
           style={{
             '--petal-x': `${3 + ((index * 37) % 94)}%`,
             '--petal-delay': `${-((index * 0.83) % 9.4)}s`,
-            '--petal-duration': `${7.6 + ((index * 11) % 37) / 10}s`,
-            '--petal-drift': `${-34 + ((index * 29) % 78)}px`,
-            '--petal-scale': `${0.62 + ((index * 17) % 52) / 100}`,
+            '--petal-duration': `${7.2 + ((index * 11) % 42) / 10}s`,
+            '--petal-drift': `${-54 + ((index * 29) % 118)}px`,
+            '--petal-scale': `${0.72 + ((index * 17) % 62) / 100}`,
           }}
         />
       ))}
@@ -798,7 +798,7 @@ function App() {
     }
   };
 
-  const handleSelectFolder = async () => {
+  const handleSelectFolder = async ({ autoQueue = false } = {}) => {
     if (importState.active) return;
     try {
       if (window.electronAPI) {
@@ -831,26 +831,38 @@ function App() {
               return;
             }
 
-            const known = new Set(audioFiles.map(file => file.id));
+            const known = new Map(audioFiles.map(file => [file.id, file]));
             const additions = accepted.filter(file => !known.has(file.id));
             const merged = [...audioFiles, ...additions]
               .sort((a, b) => a.name.localeCompare(b.name));
             accepted.filter(file => known.has(file.id)).forEach(file => URL.revokeObjectURL(file.path));
+            const queueAdditions = autoQueue
+              ? accepted
+                .map(file => known.get(file.id)?.path || file.path)
+                .filter(path => !bgPlaylist.includes(path))
+              : [];
 
-            if (additions.length === 0) {
+            if (additions.length === 0 && queueAdditions.length === 0) {
               showNotice('Those tracks are already in your library.');
               return;
             }
 
-            setAudioFiles(merged);
-            setCustomFolder(`${merged.length} track${merged.length === 1 ? '' : 's'} ready`);
+            if (additions.length > 0) {
+              setAudioFiles(merged);
+              setCustomFolder(`${merged.length} track${merged.length === 1 ? '' : 's'} ready`);
+            }
+            if (queueAdditions.length > 0) {
+              setBgPlaylist(previous => [...previous, ...queueAdditions.filter(path => !previous.includes(path))]);
+              setLibraryOpen(false);
+            }
             const rejectedCopy = rejected.length > 0
               ? ` ${rejected.length} couldn't be opened.`
               : '';
-            showNotice(`Added ${additions.length} track${additions.length === 1 ? '' : 's'}.${rejectedCopy}`);
+            const addedCount = autoQueue ? queueAdditions.length : additions.length;
+            showNotice(`${autoQueue ? 'Added' : 'Imported'} ${addedCount} track${addedCount === 1 ? '' : 's'}${autoQueue ? ' to the BGM queue' : ''}.${rejectedCopy}`);
 
             // Save to IndexedDB for persistence
-            await saveFilesToIndexedDB(merged);
+            if (additions.length > 0) await saveFilesToIndexedDB(merged);
           } catch (error) {
             console.error('Audio import failed:', error);
             showNotice("Audio import stopped unexpectedly. Try the files again.", 'error');
@@ -985,13 +997,21 @@ function App() {
     setBgIndex(result.currentIndex);
   };
 
+  const shuffleBackgroundTracks = () => {
+    const result = shufflePlaylist({ playlist: bgPlaylist, currentIndex: bgIndex });
+    if (!result.changed) return;
+    setBgPlaylist(result.playlist);
+    setBgIndex(result.currentIndex);
+    showNotice('Upcoming BGM tracks shuffled.');
+  };
+
   const playBackgroundAudio = async () => {
     const audio = bgAudioRef.current;
     if (!bgTrack || !audio || currentPerformance !== null) return false;
 
     const ready = await ensureAudioReady();
     if (!ready) {
-      setShowError('DreamLIVE audio is paused by the device. Tap Output ready, then try again.');
+      setShowError('DreamLIVE audio is paused by the device. Tap Stop audio, then play again.');
       setShowPhase(SHOW_PHASE.ERROR);
       return false;
     }
@@ -1018,7 +1038,7 @@ function App() {
       setShowError('');
       fadeGainTo(bgGainNodeRef.current, bgVolume, START_FADE);
     } else {
-      setShowError(`${trackName(bgTrack)} couldn’t start. Check Output ready, then try again.`);
+      setShowError(`${trackName(bgTrack)} couldn’t start. Tap Play again or choose another track.`);
       setShowPhase(SHOW_PHASE.ERROR);
     }
     return ok;
@@ -1259,7 +1279,7 @@ function App() {
       audio.volume = 1;
       muteGain(bgGainNodeRef.current);
       const ok = await playSafely(audio, 'background music');
-      if (!ok) throw new Error('BGM couldn’t resume. Tap Play BGM.');
+      if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
       setBgPlaying(true);
       g.exponentialRampToValueAtTime(Math.max(bgVolume, 0.0002), ctx.currentTime + BGM_FADE_SECONDS);
       const completed = await waitForFade((BGM_FADE_SECONDS * 1000) + 50);
@@ -1267,7 +1287,7 @@ function App() {
     } else {
       audio.volume = bgVolume;
       const ok = await playSafely(audio, 'background music');
-      if (!ok) throw new Error('BGM couldn’t resume. Tap Play BGM.');
+      if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
       setBgPlaying(true);
     }
     setIsFading(false);
@@ -1562,7 +1582,7 @@ function App() {
           {!runDeck && (
             <button
               className="folder-btn"
-              onClick={handleSelectFolder}
+              onClick={() => handleSelectFolder()}
               title="Add licensed tracks to this device"
               disabled={importState.active}
               aria-busy={importState.active}
@@ -1573,15 +1593,14 @@ function App() {
                 : 'Import audio'}</span>
             </button>
           )}
-          {deckState.mode !== 'prep' && (
+          {deckState.mode !== 'prep' && !runDeck && (
             <button
               type="button"
               className="setup-toggle-btn"
               onClick={() => setSetupExpanded(previous => !previous)}
-              aria-pressed={!runDeck}
             >
               <SlidersHorizontal size={18} />
-              <span>{runDeck ? 'Edit setup' : 'Run show'}</span>
+              <span>Run show</span>
             </button>
           )}
           <button
@@ -1767,20 +1786,6 @@ function App() {
         </div>
       ) : (
         <>
-          <LiveSetupDock
-            visible={setupExpanded && currentPerformance !== null}
-            analyserRef={analyserNodeRef}
-            performanceNumber={currentPerformance === null ? '' : currentPerformance + 1}
-            title={currentPerformanceName}
-            status={isFading ? 'Starting' : (showPhase === SHOW_PHASE.PAUSED ? 'Paused' : 'Live')}
-            playing={currentPerformance !== null && perfPlaying[currentPerformance]}
-            elapsed={currentPerformance === null ? 0 : perfProgress[currentPerformance]}
-            duration={currentPerformance === null ? 0 : perfDurations[currentPerformance]}
-            formatTime={formatTime}
-            onToggle={() => currentPerformance !== null && togglePerfPause(currentPerformance)}
-            onReturn={() => setSetupExpanded(false)}
-            onStop={() => stopAllAudio()}
-          />
           <main className={`show-workspace deck-${deckState.mode} ${runDeck ? 'run-deck' : ''} ${currentPerformance !== null ? 'is-live' : ''}`}>
             <section className={`background-section split-layout ${bgPlaying ? 'is-playing' : ''}`}>
               <div className="section-header">
@@ -1807,20 +1812,15 @@ function App() {
                     <strong>No tracks on this device ・ 音源がありません</strong>
                     <span>Import licensed audio to build the show.</span>
                   </div>
-                  <button type="button" onClick={handleSelectFolder} disabled={importState.active}>
-                    {importState.active ? `Checking ${importState.completed}/${importState.total}` : 'Import audio'}
+                  <button type="button" onClick={() => handleSelectFolder({ autoQueue: true })} disabled={importState.active}>
+                    {importState.active ? `Checking ${importState.completed}/${importState.total}` : 'Import & queue'}
                   </button>
                 </div>
               )}
               <div className="bg-music-container">
                 <BgmTransport
-                  analyserRef={analyserNodeRef}
                   currentTrack={bgTrack ? trackName(bgTrack) : ''}
                   nextTrack={nextBgTrack ? trackName(nextBgTrack) : ''}
-                  status={isFading
-                    ? 'Audio transitioning'
-                    : (currentPerformance !== null ? 'BGM held' : (bgPlaying ? 'BGM playing' : 'BGM paused'))}
-                  visualizerActive={(bgPlaying && currentPerformance === null) || isCheckingSound}
                   elapsed={bgProgress}
                   duration={bgDuration}
                   formatTime={formatTime}
@@ -1834,7 +1834,8 @@ function App() {
                   onToggleRepeat={() => setRepeatPlaylist(previous => !previous)}
                   volume={bgVolume}
                   onVolumeChange={handleBgVolumeChange}
-                  onOpenLibrary={() => setLibraryOpen(true)}
+                  libraryOpen={libraryOpen}
+                  onToggleLibrary={() => setLibraryOpen(previous => !previous)}
                   libraryCount={audioFiles.length}
                 />
 
@@ -1844,7 +1845,7 @@ function App() {
                   playlist={bgPlaylist}
                   displayName={displayTrackName}
                   onAdd={addBackgroundTrack}
-                  onImport={handleSelectFolder}
+                  onImport={() => handleSelectFolder({ autoQueue: true })}
                   onClose={() => setLibraryOpen(false)}
                 />
 
@@ -1857,6 +1858,7 @@ function App() {
                   onPlay={playBackgroundFrom}
                   onMove={moveBackgroundTrack}
                   onRemove={removeBackgroundTrack}
+                  onShuffle={shuffleBackgroundTracks}
                 />
 
                 <audio
@@ -1914,9 +1916,6 @@ function App() {
                         <span className={`run-live-badge ${showPhase === SHOW_PHASE.PAUSED ? 'paused' : ''}`}>
                           {isFading ? 'Starting' : (showPhase === SHOW_PHASE.PAUSED ? 'Paused' : 'Live')}
                         </span>
-                        <button type="button" className="control-button secondary-button" onClick={() => setSetupExpanded(true)}>
-                          <SlidersHorizontal size={18} /> Edit show setup
-                        </button>
                       </div>
                     </div>
                     <AudioVisualizer
@@ -1941,15 +1940,20 @@ function App() {
                       />
                       <span>{formatTime(perfDurations[focusPerformanceIndex])}</span>
                     </div>
-                    <button
-                      type="button"
-                      className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : ''}`}
-                      onClick={() => togglePerfPause(focusPerformanceIndex)}
-                      disabled={isFading}
-                    >
-                      {perfPlaying[focusPerformanceIndex] ? <Pause size={24} /> : <Play size={24} />}
-                      <span>{perfPlaying[focusPerformanceIndex] ? 'Pause performance' : 'Resume performance'}</span>
-                    </button>
+                    <div className="run-action-row">
+                      <button
+                        type="button"
+                        className={`run-primary-action ${perfPlaying[focusPerformanceIndex] ? 'is-pause' : ''}`}
+                        onClick={() => togglePerfPause(focusPerformanceIndex)}
+                        disabled={isFading}
+                      >
+                        {perfPlaying[focusPerformanceIndex] ? <Pause size={24} /> : <Play size={24} />}
+                        <span>{perfPlaying[focusPerformanceIndex] ? 'Pause performance' : 'Resume performance'}</span>
+                      </button>
+                      <button type="button" className="control-button secondary-button run-edit-setup" onClick={() => setSetupExpanded(true)}>
+                        <SlidersHorizontal size={18} /> Edit setup
+                      </button>
+                    </div>
                     <div className="run-next-preview">
                       <span>Next cue</span>
                       <strong>
@@ -1975,18 +1979,23 @@ function App() {
                       variant="focus"
                       status="Performance ready"
                     />
-                    <button
-                      type="button"
-                      className="run-primary-action"
-                      onClick={() => startPerformance(deckState.nextPerformanceIndex)}
-                      disabled={isFading}
-                    >
-                      <Play size={26} />
-                      <span className="run-action-label">
-                        <span>Start performance {deckState.nextPerformanceIndex + 1}</span>
-                        <small>パフォーマンスを開始</small>
-                      </span>
-                    </button>
+                    <div className="run-action-row">
+                      <button
+                        type="button"
+                        className="run-primary-action"
+                        onClick={() => startPerformance(deckState.nextPerformanceIndex)}
+                        disabled={isFading}
+                      >
+                        <Play size={26} />
+                        <span className="run-action-label">
+                          <span>Start performance {deckState.nextPerformanceIndex + 1}</span>
+                          <small>パフォーマンスを開始</small>
+                        </span>
+                      </button>
+                      <button type="button" className="control-button secondary-button run-edit-setup" onClick={() => setSetupExpanded(true)}>
+                        <SlidersHorizontal size={18} /> Edit setup
+                      </button>
+                    </div>
                     <p className="run-safety-note">
                       {bgPlaying
                         ? 'BGM lowers first, then returns automatically when the performance ends.'
@@ -2000,6 +2009,9 @@ function App() {
                       <span className="run-focus-kicker">Show complete ・ 公演完了</span>
                       <h2>All assigned performances are done</h2>
                       <p>{bgTrack ? 'BGM continues. Edit setup if another cue is needed.' : 'Edit setup to add another cue.'}</p>
+                      <button type="button" className="control-button secondary-button run-edit-setup" onClick={() => setSetupExpanded(true)}>
+                        <SlidersHorizontal size={18} /> Edit setup
+                      </button>
                     </div>
                   </div>
                 )}

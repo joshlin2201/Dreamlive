@@ -49,6 +49,22 @@ export function movePlaylistItem({
   };
 }
 
+export function shufflePlaylist({ playlist, currentIndex = 0, random = Math.random }) {
+  if (playlist.length < 2) return unchanged(playlist, currentIndex);
+  const safeCurrentIndex = Math.max(0, Math.min(currentIndex, playlist.length - 1));
+  const currentItem = playlist[safeCurrentIndex];
+  const next = playlist.filter((_, index) => index !== safeCurrentIndex);
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  next.splice(safeCurrentIndex, 0, currentItem);
+  const changed = next.some((item, index) => item !== playlist[index]);
+  return changed
+    ? { playlist: next, currentIndex: safeCurrentIndex, changed: true }
+    : unchanged(playlist, safeCurrentIndex);
+}
+
 export function removePlaylistItem({ playlist, index, currentIndex = 0, lockedIndex = null }) {
   if (index < 0 || index >= playlist.length || index === lockedIndex) {
     return unchanged(playlist, currentIndex);

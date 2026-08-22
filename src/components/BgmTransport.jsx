@@ -9,14 +9,10 @@ import {
   SkipForward,
   Volume2,
 } from 'lucide-react';
-import AudioVisualizer from './AudioVisualizer';
 
 function BgmTransport({
-  analyserRef,
   currentTrack,
   nextTrack,
-  status,
-  visualizerActive,
   elapsed,
   duration,
   formatTime,
@@ -30,26 +26,19 @@ function BgmTransport({
   onToggleRepeat,
   volume,
   onVolumeChange,
-  onOpenLibrary,
+  libraryOpen,
+  onToggleLibrary,
   libraryCount,
 }) {
   const canPlay = Boolean(currentTrack) && !playbackLocked;
   return (
     <div className="bgm-transport-deck">
-      <div className="bgm-track-signal">
-        <div className="bgm-track-copy">
-          <span className="control-eyebrow">Now playing ・ 再生中</span>
-          <strong title={currentTrack || undefined}>{currentTrack || 'No BGM queued'}</strong>
-          <span className="bgm-next-copy" title={nextTrack || undefined}>
-            Up next: {nextTrack || 'End of playlist'}
-          </span>
-        </div>
-        <AudioVisualizer
-          analyserRef={analyserRef}
-          active={visualizerActive}
-          variant="compact"
-          status={status}
-        />
+      <div className="bgm-track-copy">
+        <span className="control-eyebrow">Now playing ・ 再生中</span>
+        <strong title={currentTrack || undefined}>{currentTrack || 'No BGM queued'}</strong>
+        <span className="bgm-next-copy" title={nextTrack || undefined}>
+          Up next: {nextTrack || 'End of playlist'}
+        </span>
       </div>
 
       <div className="bgm-primary-controls" aria-label="BGM playback controls">
@@ -71,7 +60,7 @@ function BgmTransport({
           aria-label={playing ? 'Pause background music' : 'Play background music'}
         >
           {playing ? <Pause size={22} /> : <Play size={22} fill="currentColor" />}
-          <span>{playing ? 'Pause BGM' : 'Play BGM'}</span>
+          <span>{playing ? 'Pause' : 'Play'}</span>
         </button>
         <button
           type="button"
@@ -101,9 +90,15 @@ function BgmTransport({
       </div>
 
       <div className="bgm-secondary-controls">
-        <button type="button" className="control-button secondary-button" onClick={onOpenLibrary}>
+        <button
+          type="button"
+          className={`control-button secondary-button ${libraryOpen ? 'is-active' : ''}`}
+          onClick={onToggleLibrary}
+          aria-expanded={libraryOpen}
+          aria-controls="bgm-library-panel"
+        >
           <Search size={18} />
-          <span>Find track</span>
+          <span>{libraryOpen ? 'Close tracks' : 'Find track'}</span>
           <small>{libraryCount}</small>
         </button>
         <button

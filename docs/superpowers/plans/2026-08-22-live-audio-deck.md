@@ -1,4 +1,4 @@
-# DreamLIVE Build 7 Implementation Plan
+# DreamLIVE Build 9 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
@@ -62,22 +62,22 @@
 - [x] Remove BGM as a performance-start gate: direct start/replay works after output calibration, while completion starts or resumes queued BGM.
 - [x] Remove output calibration as a gate; Play and Start work immediately, with output testing and level saving available as an optional utility.
 - [x] Replace the unrelated action row with a centered transport cluster, progress scrubber, repeat, and level.
-- [x] Add a responsive searchable library with memoized normalization, exact result count, a 100-result render cap, and Add next/Add to end.
-- [x] Add queue Play from here, move earlier/later, and remove controls with held-item locking during performance playback.
+- [x] Add a dismissible searchable library with memoized normalization, exact result count, a 100-result render cap, and one contextual Add action.
+- [x] Auto-queue files imported from the BGM library; add direct drag reorder, keyboard reorder, shuffle, Play from here, and remove with held-item locking.
 - [x] Preserve queue state and report named track failures without removing items.
 
 ## Task 5: Keep setup usable during live performance
 
 **Files:**
-- Create: `src/components/LiveSetupDock.jsx`
+- Delete: `src/components/LiveSetupDock.jsx`
 - Modify: `src/App.jsx`
 - Modify: `src/App.css`
 
-- [x] Add an obvious `Edit show setup` action inside the large focus player.
+- [x] Keep exactly one `Edit setup` action beside the primary performance transport.
 - [x] Keep playback mounted and uninterrupted when setup expands.
-- [x] Pin a compact live dock with title, signal, progress, pause/resume, return, and Stop audio access.
+- [x] Remove the redundant live dock; the active performance row remains the setup-mode transport.
 - [x] Allow future performance assignment, importing, and future BGM queue edits; lock only the active performance and held BGM item.
-- [x] Remove the duplicated `Next on stage` label.
+- [x] Make portrait performance-first in both run and setup modes, with a narrower BGM utility dock below.
 
 ## Task 6: Apply one premium component system
 
@@ -92,6 +92,7 @@
 - [x] Replace the heavy selected-option card with an accent rail, subtle wash, and check; preserve keyboard focus and 44px targets.
 - [x] Verify Japanese titles wrap/truncate cleanly and sakura identity remains intact.
 - [x] Add a denser continuous sakura soundscape behind controls only while show audio is audible, with reduced-motion fallback.
+- [x] Remove the redundant BGM visualizer and context-repeating `Play BGM` label; keep the expressive visualizer on the stage.
 
 ## Task 7: Prove the production experience
 
@@ -106,13 +107,13 @@
 - [x] Capture and inspect 390, 768, 1024, and 1366px screenshots; require zero console errors and no horizontal overflow.
 - [x] Verify clickless envelope scheduling with an automated regression; native listening across first play, pause/resume, seek, manual next/previous, both handoffs, and Stop audio remains the release gate.
 
-## Task 8: Release and verify universal iOS build 8
+## Task 8: Release and verify universal iOS build 9
 
 **Files:**
 - Modify: `ios/App/App.xcodeproj/project.pbxproj`
 - Create/update: release evidence under `docs/`
 
-- [ ] Confirm `CURRENT_PROJECT_VERSION = 7` and create a signed archive/export.
+- [ ] Confirm `CURRENT_PROJECT_VERSION = 9` and create a signed archive/export.
 - [ ] Upload to App Store Connect, wait for VALID processing, and attach only to internal `DreamLIVE team` TestFlight.
 - [ ] Update/install the TestFlight build on this Mac and repeat real external-drive MP3 plus local M4A import/playback; expose the same internal build to iPhone testers for real-hardware proof.
 - [ ] Commit and push the exact tested source; record commit SHA, build id, tests, browser proof, and native proof.

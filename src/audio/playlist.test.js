@@ -5,6 +5,7 @@ import {
   nextPlaylistIndex,
   previousPlaylistAction,
   removePlaylistItem,
+  shufflePlaylist,
 } from './playlist';
 
 describe('background playlist rules', () => {
@@ -42,6 +43,21 @@ describe('background playlist rules', () => {
     expect(movePlaylistItem({
       playlist: ['a', 'b', 'c'], fromIndex: 0, toIndex: 1, currentIndex: 0, lockedIndex: 0,
     }).changed).toBe(false);
+  });
+
+  test('shuffles the queue without changing the selected current track', () => {
+    const values = [0.2, 0.8, 0.1];
+    let draw = 0;
+    const result = shufflePlaylist({
+      playlist: ['a', 'b', 'c', 'd'],
+      currentIndex: 1,
+      random: () => values[draw++],
+    });
+
+    expect(result.playlist).toEqual(['d', 'b', 'c', 'a']);
+    expect(result.currentIndex).toBe(1);
+    expect(result.playlist[result.currentIndex]).toBe('b');
+    expect(result.changed).toBe(true);
   });
 
   test('removes future items but never removes a locked live item', () => {

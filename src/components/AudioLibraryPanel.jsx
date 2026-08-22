@@ -7,13 +7,23 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef(null);
   const listRef = useRef(null);
+  const panelRef = useRef(null);
   const { total, results } = useMemo(() => filterAudioLibrary(files, query), [files, query]);
 
   useEffect(() => {
     if (!open) return undefined;
     setActiveIndex(0);
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
+    const dismiss = event => {
+      if (panelRef.current?.contains(event.target)) return;
+      if (event.target.closest?.('[aria-controls="bgm-library-panel"]')) return;
+      onClose();
+    };
+    document.addEventListener('pointerdown', dismiss);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('pointerdown', dismiss);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -32,12 +42,12 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
       setActiveIndex(index => Math.max(0, Math.min(results.length - 1, index + direction)));
     } else if (event.key === 'Enter' && results[activeIndex]) {
       event.preventDefault();
-      onAdd(results[activeIndex].path, 'next');
+      onAdd(results[activeIndex].path);
     }
   };
 
   return (
-    <section className="audio-library-panel" aria-label="Audio library">
+    <section ref={panelRef} id="bgm-library-panel" className="audio-library-panel" aria-label="Audio library">
       <div className="audio-library-header">
         <div>
           <span className="control-eyebrow">On-device library ・ 音源</span>
@@ -75,12 +85,9 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
                 <span className="library-track-index">{String(index + 1).padStart(2, '0')}</span>
                 <strong title={displayName(file.name)}>{displayName(file.name)}</strong>
                 {queued ? (
-                  <span className="queued-label">Queued</span>
+                  <span className="queued-label">In queue</span>
                 ) : (
-                  <div className="library-row-actions">
-                    <button type="button" onClick={() => onAdd(file.path, 'next')}>Add next</button>
-                    <button type="button" onClick={() => onAdd(file.path, 'end')}>Add to end</button>
-                  </div>
+                  <button type="button" className="library-add-button" onClick={() => onAdd(file.path)}>Add</button>
                 )}
               </div>
             );
@@ -95,7 +102,7 @@ function AudioLibraryPanel({ open, files, playlist, displayName, onAdd, onImport
         </div>
       )}
       <button type="button" className="control-button secondary-button library-import-button" onClick={onImport}>
-        <FolderOpen size={18} /> Import audio
+        <FolderOpen size={18} /> Import to BGM
       </button>
     </section>
   );
