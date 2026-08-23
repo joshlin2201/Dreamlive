@@ -12,6 +12,17 @@ set -eu
 
 cd "$CI_PRIMARY_REPOSITORY_PATH"
 
+# Xcode Cloud stamps its own run counter as the uploaded build number, and it
+# ignores anything the project or a pre-build script sets. This app already has
+# builds up to 18 in App Store Connect from local archives, so any run at or
+# below that is rejected on upload for going backwards. Fail in forty seconds
+# instead of spending a full archive to learn it again.
+HIGHEST_UPLOADED=18
+if [ "${CI_BUILD_NUMBER:-0}" -le "$HIGHEST_UPLOADED" ]; then
+  echo "run $CI_BUILD_NUMBER uploads as build $CI_BUILD_NUMBER, which is not above the $HIGHEST_UPLOADED already in App Store Connect"
+  exit 1
+fi
+
 if ! command -v node > /dev/null 2>&1; then
   echo "installing node"
   brew install node@20
