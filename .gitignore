@@ -34,3 +34,6 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+
+# Local browser-automation scratch
+.playwright-cli/
