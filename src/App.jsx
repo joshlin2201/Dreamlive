@@ -993,11 +993,27 @@ function App() {
         }
       }
     };
+    // Native side reactivated the audio session after a call, Siri, or a media
+    // services reset. The app may still be in the background here, so this path
+    // cannot wait for visibility the way the others do.
+    const restoreAfterSession = async () => {
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state !== 'running') {
+        try { await ctx.resume(); } catch (error) { /* handled by the next user action */ }
+      }
+      const playback = playbackStateRef.current;
+      if (playback.currentPerformance === null && playback.bgPlaying && bgAudioRef.current?.paused) {
+        try { await bgAudioRef.current.play(); } catch (error) { /* the operator will see it stopped */ }
+      }
+    };
+
     document.addEventListener('visibilitychange', recover);
     window.addEventListener('focus', recover);
+    window.addEventListener('dreamliveAudioSessionRestored', restoreAfterSession);
     return () => {
       document.removeEventListener('visibilitychange', recover);
       window.removeEventListener('focus', recover);
+      window.removeEventListener('dreamliveAudioSessionRestored', restoreAfterSession);
     };
   }, []);
 
