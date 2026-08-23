@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect, useId } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, useId } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -56,6 +56,16 @@ import {
 import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import AudioVisualizer from './components/AudioVisualizer';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
+import {
+  ALL_FOLDERS,
+  assignFolder,
+  createFolder,
+  deleteFolder,
+  filesInFolder,
+  foldersWithCounts,
+  normalizeFolderState,
+  renameFolder,
+} from './audio/folders';
 import BgmQueue from './components/BgmQueue';
 import './App.css';
 
@@ -120,11 +130,18 @@ function SearchableSelect({
   menuAlign,
   compactActions = false,
   onRemove,
+  folders = [],
+  folderValue,
+  onFolderChange,
+  multiple = false,
+  onConfirmMultiple,
+  confirmLabel = 'Add',
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuStage, setMenuStage] = useState('actions');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [picked, setPicked] = useState(() => []);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 320, placement: 'bottom' });
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
@@ -154,6 +171,7 @@ function SearchableSelect({
       if (event.key === 'Escape') {
         setIsOpen(false);
         setSearchTerm('');
+        setPicked([]);
         triggerRef.current?.focus();
       }
     }
@@ -308,25 +326,73 @@ function SearchableSelect({
                   </button>
                 )}
               </div>
-              <div id={listboxId} className="select-options" role="listbox" aria-label="Audio tracks">
+              {folders.length > 0 && (
+                <div className="select-folder-bar" role="tablist" aria-label="Folders">
+                  {folders.map(entry => (
+                    <button
+                      key={entry.name}
+                      type="button"
+                      role="tab"
+                      aria-selected={folderValue === entry.name}
+                      className={`select-folder-chip ${folderValue === entry.name ? 'is-active' : ''}`}
+                      onClick={() => onFolderChange?.(entry.name)}
+                    >
+                      <span>{entry.name}</span>
+                      <em>{entry.count}</em>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div id={listboxId} className="select-options" role="listbox" aria-multiselectable={multiple} aria-label="Audio tracks">
                 {filteredOptions.length === 0 ? (
                   <div className="no-results">No tracks found</div>
-                ) : filteredOptions.map((option, index) => (
-                <button
-                  key={option.value}
-                  id={`${listboxId}-${index}`}
-                  type="button"
-                  className={`select-option ${option.value === value ? 'selected' : ''} ${index === activeIndex ? 'active' : ''}`}
-                  onClick={() => handleSelect(option.value)}
-                  onPointerEnter={() => setActiveIndex(index)}
-                  role="option"
-                  aria-selected={option.value === value}
-                >
-                  <span>{option.label}</span>
-                  {option.value === value && <Check size={16} aria-hidden="true" />}
-                </button>
-                ))}
+                ) : filteredOptions.map((option, index) => {
+                  const isPicked = multiple
+                    ? picked.includes(option.value)
+                    : option.value === value;
+                  return (
+                    <button
+                      key={option.value}
+                      id={`${listboxId}-${index}`}
+                      type="button"
+                      className={`select-option ${isPicked ? 'selected' : ''} ${index === activeIndex ? 'active' : ''}`}
+                      onClick={() => {
+                        if (!multiple) return handleSelect(option.value);
+                        setPicked(previous => (previous.includes(option.value)
+                          ? previous.filter(item => item !== option.value)
+                          : [...previous, option.value]));
+                      }}
+                      onPointerEnter={() => setActiveIndex(index)}
+                      role="option"
+                      aria-selected={isPicked}
+                    >
+                      {multiple && (
+                        <span className="select-check" aria-hidden="true">{isPicked && <Check size={12} />}</span>
+                      )}
+                      <span>{option.label}</span>
+                      {!multiple && isPicked && <Check size={16} aria-hidden="true" />}
+                    </button>
+                  );
+                })}
               </div>
+              {multiple && (
+                <div className="select-confirm-bar">
+                  <span>{picked.length} selected</span>
+                  <button
+                    type="button"
+                    className="select-confirm-button"
+                    disabled={picked.length === 0}
+                    onClick={() => {
+                      onConfirmMultiple?.(picked);
+                      setPicked([]);
+                      setSearchTerm('');
+                      setIsOpen(false);
+                    }}
+                  >
+                    {confirmLabel}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </motion.div>
@@ -431,6 +497,17 @@ function App() {
     typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
   ));
   const [libraryOpen, setLibraryOpen] = useState(false);
+  // Folders are labels the operator puts on imported tracks so a 30-track
+  // library sorts into room music and performances. They live beside the
+  // library, never inside the audio.
+  const [folderState, setFolderState] = useState(() => {
+    try {
+      return normalizeFolderState(JSON.parse(window.localStorage.getItem('dreamlive-folders-v1')));
+    } catch {
+      return normalizeFolderState();
+    }
+  });
+  const [performanceFolder, setPerformanceFolder] = useState(ALL_FOLDERS);
   const bgAudioRef = useRef(null);
   const bgTrack = bgPlaylist[bgIndex] || '';
 
@@ -515,6 +592,22 @@ function App() {
   const closeResetConfirmation = () => {
     setResetConfirmOpen(false);
     window.requestAnimationFrame(() => resetReturnFocusRef.current?.focus());
+  };
+
+  useEffect(() => {
+    window.localStorage.setItem('dreamlive-folders-v1', JSON.stringify(folderState));
+  }, [folderState]);
+
+  const performanceFolderChips = useMemo(
+    () => foldersWithCounts(folderState, audioFiles),
+    [folderState, audioFiles],
+  );
+
+  const moveTracksToFolder = (paths, folder) => {
+    const targets = new Set(paths);
+    setFolderState(previous => audioFiles
+      .filter(file => targets.has(file.path))
+      .reduce((state, file) => assignFolder(state, file, folder), previous));
   };
 
   const requestLibraryRemoval = (paths) => {
@@ -1939,6 +2032,32 @@ function App() {
     showNotice('Performance added.');
   };
 
+  // Adding a set is one action: every chosen track becomes its own slot, in
+  // the order they were picked.
+  const addPerformances = (paths) => {
+    const tracks = paths.filter(Boolean);
+    if (tracks.length === 0) return;
+    const startIndex = perfTracks.length;
+    setPerfTracks(previous => [...previous, ...tracks]);
+    setPerfPlaying(previous => [...previous, ...tracks.map(() => false)]);
+    tracks.forEach(() => perfVolumesRef.current.push(0.8));
+    setPerfVolumes(previous => [...previous, ...tracks.map(() => 0.8)]);
+    setPerfProgress(previous => [...previous, ...tracks.map(() => 0)]);
+    setPerfDurations(previous => [...previous, ...tracks.map(() => 0)]);
+    setPerformanceStatus(previous => [...previous, ...tracks.map(() => false)]);
+    setPerformanceOrder(previous => [...previous, ...tracks.map((_, offset) => startIndex + offset)]);
+    tracks.forEach(() => {
+      perfAudioRefs.current.push(null);
+      perfGainNodeRefs.current.push(null);
+      perfSourceNodeRefs.current.push(null);
+      seekTimeoutRefs.current.perf.push(null);
+      performanceSeekingRef.current.push(false);
+      performanceSeekReleaseRefs.current.push(null);
+    });
+    setDraftPerformanceIndex(null);
+    showNotice(`Added ${tracks.length} performance${tracks.length === 1 ? '' : 's'}.`);
+  };
+
   const updatePerformanceTrack = (index, value) => {
     setPerfTracks(previous => previous.map((track, trackIndex) => (
       trackIndex === index ? value : track
@@ -2137,9 +2256,14 @@ function App() {
         displayName={displayTrackName}
         onAdd={addBackgroundTrack}
         onImport={() => handleSelectFolder({ autoQueue: true })}
-        onRemove={path => requestLibraryRemoval([path])}
+        onRemove={paths => requestLibraryRemoval(Array.isArray(paths) ? paths : [paths])}
         onClear={() => requestLibraryRemoval(audioFiles.map(file => file.path))}
         onClose={() => setLibraryOpen(false)}
+        folderState={folderState}
+        onMoveToFolder={moveTracksToFolder}
+        onCreateFolder={name => setFolderState(previous => createFolder(previous, name))}
+        onRenameFolder={(from, to) => setFolderState(previous => renameFolder(previous, from, to))}
+        onDeleteFolder={name => setFolderState(previous => deleteFolder(previous, name))}
       />
 
       {showError && (
@@ -2426,7 +2550,10 @@ function App() {
                         title={perfPlaying[focusPerformanceIndex] ? 'Pause' : 'Resume'}
                       >
                         {perfPlaying[focusPerformanceIndex] ? <Pause size={18} /> : <Play size={18} />}
-                        <span>{perfPlaying[focusPerformanceIndex] ? 'Pause Performance' : 'Resume Performance'}</span>
+                        <span>
+                          {perfPlaying[focusPerformanceIndex] ? 'Pause' : 'Resume'}
+                          <span className="action-qualifier"> Performance</span>
+                        </span>
                       </button>
                       <button
                         type="button"
@@ -2500,7 +2627,9 @@ function App() {
                         disabled={isFading || !trackSource(perfTracks[focusPerformanceIndex])}
                       >
                         <Play size={18} />
-                        <span>Start Performance!</span>
+                        <span>
+                          Start<span className="action-qualifier"> Performance</span>!
+                        </span>
                       </button>
                       <details className="run-level-menu">
                         <summary aria-label={`Performance level ${Math.round(perfVolumes[focusPerformanceIndex] * 100)} percent`}>
@@ -2552,7 +2681,7 @@ function App() {
                       title="Reset every performance to the beginning"
                     >
                       <RotateCcw size={14} />
-                      <span>Restart Dream Live</span>
+                      <span>Restart<span className="action-qualifier"> Dream Live</span></span>
                     </button>
                   )}
                   {!dreamLiveComplete && (
@@ -2624,7 +2753,7 @@ function App() {
                         value={perfTracks[index]}
                         onChange={(value) => updatePerformanceTrack(index, value)}
                         onRemove={() => updatePerformanceTrack(index, '')}
-                        options={audioFiles.map(file => ({
+                        options={filesInFolder(audioFiles, folderState, performanceFolder).map(file => ({
                           value: file.path,
                           label: displayTrackName(file.name)
                         }))}
@@ -2637,6 +2766,9 @@ function App() {
                         compactActions={Boolean(perfTracks[index])}
                         menuWidth={320}
                         menuAlign={perfTracks[index] ? 'end' : 'start'}
+                        folders={performanceFolderChips}
+                        folderValue={performanceFolder}
+                        onFolderChange={setPerformanceFolder}
                       />
                     )}
                   </div>
@@ -2654,10 +2786,31 @@ function App() {
                   />
                 </motion.div>
               ))}
-              <button type="button" className="add-performance-button" onClick={addPerformance}>
-                <Plus size={13} />
-                <span>Add performance</span>
-              </button>
+              <div className="add-performance-row">
+                <SearchableSelect
+                  value=""
+                  onChange={() => {}}
+                  options={filesInFolder(audioFiles, folderState, performanceFolder).map(file => ({
+                    value: file.path,
+                    label: displayTrackName(file.name),
+                  }))}
+                  placeholder="Add performances"
+                  triggerClassName="add-performance-trigger"
+                  triggerAriaLabel="Add performances from your library"
+                  menuWidth={340}
+                  menuAlign="start"
+                  folders={performanceFolderChips}
+                  folderValue={performanceFolder}
+                  onFolderChange={setPerformanceFolder}
+                  multiple
+                  confirmLabel="Add to lineup"
+                  onConfirmMultiple={addPerformances}
+                />
+                <button type="button" className="add-performance-button" onClick={addPerformance}>
+                  <Plus size={13} />
+                  <span>Empty slot</span>
+                </button>
+              </div>
             </div>
             </section>
           </main>

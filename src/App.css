@@ -6628,3 +6628,2267 @@ input:focus-visible {
     min-height: 84px;
   }
 }
+
+/* ── Phone ────────────────────────────────────────────────────────────────
+   One decisive layout for handsets. Earlier passes stacked absolute offsets
+   and fixed heights that were tuned for tablets; on a 390px screen they put
+   the lineup header on top of the stage title and left the BGM row blank.
+   Everything below re-establishes a single vertical flow: BGM sized to its
+   content, the stage sized to its content, the lineup taking whatever is left
+   and scrolling inside it. */
+
+/* Two definitions, one grid: a later rule narrowed the queue row to two
+   columns while a phone rule still declared three named areas, so the play
+   button took the title's column and the track name rendered 0px wide. */
+.show-workspace.run-deck .background-section .queue-row,
+.show-workspace.run-deck .bgm-queue.is-collapsed .queue-row {
+  grid-template-areas: none;
+}
+
+@media (max-width: 620px) {
+  .show-workspace,
+  .show-workspace.run-deck,
+  .show-workspace.run-deck.is-live,
+  .show-workspace.run-deck.is-visualizing,
+  .show-workspace.run-deck.is-bgm-active:not(.is-live),
+  .show-workspace.run-deck.is-live.is-bgm-expanded {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck .background-section {
+    min-height: 0;
+    padding: 12px 12px 10px;
+  }
+
+  .show-workspace.run-deck .bgm-queue {
+    display: block;
+    min-height: 0;
+    max-height: 124px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .show-workspace.run-deck.is-bgm-expanded .bgm-queue {
+    max-height: 210px;
+  }
+
+  .show-workspace.run-deck .performances-section {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .show-workspace.run-deck.is-setup-open .performances-section,
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    display: grid;
+    grid-template-rows: max-content 34px minmax(0, 1fr);
+  }
+
+  /* Nothing in this column is positioned by hand any more. */
+  .show-workspace.run-deck.is-setup-open .run-focus-panel {
+    position: relative;
+    inset: auto;
+    align-self: start;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    padding: 14px 14px 8px;
+    border-radius: 0;
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-setup-header,
+  .show-workspace.run-deck.is-setup-open .performances-grid {
+    position: relative;
+    inset: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    background: var(--surface);
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-setup-header {
+    z-index: 6;
+    padding-inline: 14px;
+    border-top: 1px solid var(--line);
+  }
+
+  .show-workspace.run-deck.is-setup-open .performances-grid {
+    z-index: 5;
+    align-content: start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The stage reads at phone scale: smaller headline, wrapping transport. */
+  .show-workspace.run-deck .run-focus-kicker {
+    font-size: 13px;
+  }
+
+  .show-workspace.run-deck .run-focus-kicker .japanese-label {
+    font-size: 11px;
+  }
+
+  .show-workspace.run-deck .run-focus-heading h2,
+  .show-workspace.run-deck .run-complete-state h2 {
+    max-width: 100%;
+    font-size: 22px;
+    line-height: 1.18;
+    padding-bottom: 6px;
+  }
+
+  .show-workspace.run-deck .run-focus-kicker + h2 {
+    margin-top: 5px;
+  }
+
+  .show-workspace.run-deck .run-action-row {
+    flex-wrap: wrap;
+    gap: 7px;
+    row-gap: 7px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action,
+  .show-workspace.run-deck .run-action-row .run-end-button {
+    font-size: 13px;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip {
+    height: 62px;
+    min-height: 62px;
+    max-height: 62px;
+    margin: 6px 0 0;
+    padding: 0;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip .audio-visualizer.focus {
+    height: 62px;
+    min-height: 62px;
+  }
+
+  .show-workspace.run-deck.is-setup-open .performance-card,
+  .show-workspace.run-deck.is-setup-open .performance-card.active {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-areas: "header select actions";
+    min-height: 52px;
+    padding: 6px 12px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Let the queue show a whole row instead of clipping it into a scrollbar. */
+  .show-workspace.run-deck .bg-music-container {
+    height: auto;
+    min-height: 0;
+  }
+
+  .show-workspace.run-deck .bgm-queue {
+    max-height: 158px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The portrait floor was sized for a tablet stage; a phone stage is shorter. */
+  .show-workspace.run-deck.is-visualizing.is-setup-open .run-focus-panel {
+    min-height: 0;
+  }
+
+  /* The level popover opened off the left edge of a narrow screen. On a phone
+     it becomes a full-width row under the transport, always reachable. */
+  .run-action-row .run-level-menu[open] {
+    flex: 1 1 100%;
+  }
+
+  .run-action-row .run-level-menu .run-level-control {
+    position: static;
+    display: block;
+    width: 100%;
+    margin-top: 7px;
+    padding: 8px 10px;
+    border: 1px solid rgba(120, 78, 96, 0.16);
+    border-radius: 10px;
+    background: #fffafc;
+    box-shadow: 0 3px 0 rgba(120, 78, 96, 0.1);
+  }
+
+  .run-action-row .run-level-menu .run-level-control input[type="range"] {
+    width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The lineup header holds two actions on a 390px row: keep them compact so
+     'Lineup' is never crowded off. */
+  .show-workspace.run-deck .run-setup-header .lineup-header-actions {
+    gap: 4px;
+  }
+
+  .show-workspace.run-deck .run-setup-header .control-button {
+    min-height: 28px;
+    padding-inline: 8px;
+    font-size: 10.5px;
+  }
+
+  .show-workspace.run-deck .run-setup-header .restart-dreamlive-button span {
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 620px) {
+  /* One row of controls on a phone: the icon plus the verb carries the action,
+     so the qualifier is dropped rather than wrapping the transport. */
+  .run-action-row .action-qualifier {
+    display: none;
+  }
+
+  .show-workspace.run-deck .run-action-row {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action,
+  .show-workspace.run-deck .run-action-row .run-end-button {
+    min-width: 0;
+    padding: 0 12px 0 10px;
+    font-size: 13px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action.is-start {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 0 14px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-level-menu {
+    margin-left: auto;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-level-menu > summary {
+    padding-inline: 9px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The collapsed BGM bar pushed its title to the far side of the chevron,
+     leaving a dead gap across a 390px screen. Title follows the cue. */
+  .show-workspace.run-deck .bgm-header-toggle {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  /* A row's overflow control is a 34px tap target, not a 78px slab. */
+  .show-workspace.run-deck .performance-card button[aria-label^="More options"] {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    border-radius: 9px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The live state re-introduced space-between, which is what left the gap. */
+  .show-workspace.run-deck.is-live .bgm-header-toggle,
+  .show-workspace.run-deck .bgm-header-toggle {
+    justify-content: flex-start;
+  }
+
+  /* "Restart" is the whole instruction on a phone. */
+  .run-setup-header .action-qualifier {
+    display: none;
+  }
+
+  .show-workspace.run-deck .run-setup-header .restart-dreamlive-button span {
+    max-width: none;
+  }
+}
+
+/* ── Phone, landscape ─────────────────────────────────────────────────────
+   844x390 is a wide, very short screen. The tablet proportions leave the
+   lineup with room for two rows. Everything here trades headline scale for
+   list: a compact stage, and the lineup taking whatever is left. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .show-workspace,
+  .show-workspace.run-deck {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck .background-section {
+    padding: 10px 10px 8px;
+  }
+
+  .show-workspace.run-deck.is-setup-open .performances-section,
+  .show-workspace.run-deck.is-visualizing.is-setup-open .performances-section {
+    grid-template-rows: max-content 30px minmax(0, 1fr);
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-focus-panel {
+    align-self: start;
+    height: auto;
+    min-height: 0;
+    padding: 10px 14px 6px;
+  }
+
+  .show-workspace.run-deck .run-focus-kicker {
+    font-size: 12px;
+  }
+
+  .show-workspace.run-deck .run-focus-kicker .japanese-label {
+    font-size: 10.5px;
+  }
+
+  .show-workspace.run-deck .run-focus-kicker + h2 {
+    margin-top: 3px;
+  }
+
+  .show-workspace.run-deck .run-focus-heading h2,
+  .show-workspace.run-deck .run-complete-state h2 {
+    max-width: 100%;
+    font-size: 19px;
+    line-height: 1.16;
+    padding-bottom: 5px;
+  }
+
+  .run-action-row .action-qualifier {
+    display: none;
+  }
+
+  .show-workspace.run-deck .run-action-row {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding-bottom: 0;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action,
+  .show-workspace.run-deck .run-action-row .run-primary-action.is-start,
+  .show-workspace.run-deck .run-action-row .run-end-button,
+  .show-workspace.run-deck .run-action-row .run-rail-button,
+  .show-workspace.run-deck .run-action-row .run-level-menu > summary {
+    min-height: 34px;
+    height: 34px;
+    font-size: 12.5px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-rail-button {
+    width: 34px;
+    min-width: 34px;
+  }
+
+  .show-workspace.run-deck .run-progress {
+    margin-top: 4px;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip {
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    margin: 5px 0 0;
+    padding: 0;
+  }
+
+  .show-workspace.run-deck.is-visualizing .run-signal-strip .audio-visualizer.focus {
+    height: 42px;
+    min-height: 42px;
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-setup-header {
+    min-height: 30px;
+    padding-inline: 14px;
+    font-size: 9.5px;
+  }
+
+  .show-workspace.run-deck.is-setup-open .run-setup-header .control-button {
+    min-height: 26px;
+    padding-inline: 7px;
+    font-size: 10px;
+  }
+
+  .run-setup-header .action-qualifier {
+    display: none;
+  }
+
+  .show-workspace.run-deck.is-setup-open .performances-grid {
+    position: relative;
+    inset: auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .show-workspace.run-deck.is-setup-open .performance-card,
+  .show-workspace.run-deck.is-setup-open .performance-card.active {
+    min-height: 40px;
+    padding: 4px 12px;
+  }
+
+  .show-workspace.run-deck .bgm-queue {
+    max-height: 168px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 460px) {
+  /* The lineup header was still absolutely placed by a tablet rule, so it
+     landed in the middle of the list. It belongs in its own grid row. */
+  .show-workspace.run-deck.is-setup-open .run-setup-header {
+    position: relative;
+    inset: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: 6;
+    width: auto;
+    height: auto;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+
+  .show-workspace.run-deck.is-setup-open .performances-grid {
+    z-index: 5;
+    background: var(--surface);
+  }
+
+  /* One line for the BGM heading, and room for the queue's scrollbar so the
+     Loop control is never clipped by it. */
+  .show-workspace.run-deck .bgm-header-toggle {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 7px;
+  }
+
+  .show-workspace.run-deck .bgm-header-title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .show-workspace.run-deck .bgm-queue-heading {
+    padding-right: 10px;
+  }
+}
+
+@media (max-width: 620px) {
+  .show-workspace.run-deck .bgm-queue-heading {
+    padding-right: 10px;
+  }
+}
+
+/* ── Phone tightening ─────────────────────────────────────────────────────
+   Smaller controls, single-line headings, and no overlay scrollbar eating the
+   Loop control. Applies to both handset orientations. */
+@media (max-width: 620px), (orientation: landscape) and (max-height: 460px) {
+  .show-workspace.run-deck .section-title,
+  .show-workspace.run-deck .bgm-header-static,
+  .show-workspace.run-deck .bgm-header-title {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+    white-space: nowrap;
+    font-size: 20px;
+    line-height: 1.1;
+  }
+
+  .show-workspace.run-deck .section-title .japanese-label,
+  .show-workspace.run-deck .bgm-header-static .japanese-label,
+  .show-workspace.run-deck .bgm-header-title .japanese-label {
+    display: inline;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .show-workspace.run-deck .background-section .section-header {
+    align-items: center;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .show-workspace.run-deck .bgm-header-actions {
+    margin-left: auto;
+  }
+
+  .show-workspace.run-deck .bgm-header-actions .bgm-header-level > summary,
+  .show-workspace.run-deck .bgm-queue-heading button {
+    min-height: 26px;
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+
+  .show-workspace.run-deck .bgm-queue-heading {
+    min-height: 26px;
+    padding-block: 0 3px;
+    font-size: 11px;
+  }
+
+  /* Touch lists scroll by gesture; an overlay scrollbar only clips the row. */
+  .show-workspace.run-deck .bgm-queue,
+  .show-workspace.run-deck .performances-grid {
+    scrollbar-width: none;
+  }
+
+  .show-workspace.run-deck .bgm-queue::-webkit-scrollbar,
+  .show-workspace.run-deck .performances-grid::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  /* Queue rows earn their height back. */
+  .show-workspace.run-deck .queue-row {
+    min-height: 38px;
+  }
+
+  .show-workspace.run-deck .queue-playback-button {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+  }
+
+  .show-workspace.run-deck .queue-row-actions button {
+    width: 26px;
+    min-width: 26px;
+  }
+
+  .show-workspace.run-deck .queue-track-copy strong {
+    font-size: 12.5px;
+  }
+}
+
+@media (max-width: 620px), (orientation: landscape) and (max-height: 460px) {
+  /* On a handset the BGM column is too narrow for the bilingual sub-label to
+     sit beside the level control without colliding. "BGM" carries it alone. */
+  .show-workspace.run-deck .background-section .section-header .japanese-label {
+    display: none;
+  }
+
+  .show-workspace.run-deck .background-section .section-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .show-workspace.run-deck .queue-row {
+    padding-block: 3px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 460px) {
+  /* The autoplay list is the whole left column: it runs edge to edge and
+     scrolls, instead of sitting in a short inset box that shows three rows. */
+  .show-workspace.run-deck .background-section {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    padding: 10px 0 8px;
+  }
+
+  .show-workspace.run-deck .background-section .section-header {
+    padding-inline: 12px;
+  }
+
+  .show-workspace.run-deck .bg-music-container {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    height: auto;
+  }
+
+  .show-workspace.run-deck .bgm-queue {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    padding-inline: 0;
+  }
+
+  .show-workspace.run-deck .bgm-queue-heading {
+    padding-inline: 12px;
+  }
+
+  .show-workspace.run-deck .queue-layout-row,
+  .show-workspace.run-deck .queue-row {
+    border-radius: 0;
+  }
+
+  .show-workspace.run-deck .queue-row {
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 620px) and (orientation: portrait) {
+  /* Show a few queued tracks, not one, while leaving the lineup its room. */
+  .show-workspace.run-deck .bgm-queue {
+    max-height: 196px;
+  }
+
+  .show-workspace.run-deck.is-bgm-expanded .bgm-queue {
+    max-height: 268px;
+  }
+}
+
+@media (max-width: 620px), (orientation: landscape) and (max-height: 460px) {
+  /* Slim transport on a handset: 32px controls, a 2px drop instead of 3-4, and
+     padding that matches the smaller type. */
+  .show-workspace.run-deck .run-action-row {
+    gap: 6px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action,
+  .show-workspace.run-deck .run-action-row .run-primary-action.is-start,
+  .show-workspace.run-deck .run-action-row .run-primary-action.is-pause,
+  .show-workspace.run-deck .run-action-row .run-primary-action.is-resume,
+  .show-workspace.run-deck .run-action-row .run-end-button,
+  .show-workspace.run-deck .run-action-row .run-rail-button,
+  .show-workspace.run-deck .run-action-row .run-level-menu > summary {
+    min-height: 32px;
+    height: 32px;
+    gap: 6px;
+    padding: 0 10px;
+    border-radius: 9px;
+    font-size: 12.5px;
+    box-shadow: 0 2px 0 rgba(213, 44, 120, 0.16);
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action.is-start {
+    font-size: 13px;
+    box-shadow: 0 2px 0 rgba(213, 44, 120, 0.26);
+  }
+
+  .show-workspace.run-deck .run-action-row .run-end-button {
+    box-shadow: 0 2px 0 rgba(140, 60, 95, 0.14);
+  }
+
+  .show-workspace.run-deck .run-action-row .run-rail-button,
+  .show-workspace.run-deck .run-action-row .run-level-menu > summary {
+    box-shadow: 0 2px 0 rgba(120, 78, 96, 0.12);
+  }
+
+  .show-workspace.run-deck .run-action-row .run-rail-button {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+  }
+
+  .show-workspace.run-deck .run-action-row svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .show-workspace.run-deck .run-action-row .run-primary-action:active:not(:disabled),
+  .show-workspace.run-deck .run-action-row .run-end-button:active:not(:disabled),
+  .show-workspace.run-deck .run-action-row .run-rail-button:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 rgba(213, 44, 120, 0.22);
+  }
+}
+
+@media (max-width: 620px), (orientation: landscape) and (max-height: 460px) {
+  /* BGM is a label, not a headline: it sits on one tight line with the level. */
+  .show-workspace.run-deck .background-section .section-title,
+  .show-workspace.run-deck .bgm-header-static,
+  .show-workspace.run-deck .bgm-header-title {
+    font-size: 16px;
+    letter-spacing: -0.02em;
+  }
+
+  .show-workspace.run-deck .background-section .section-header {
+    min-height: 28px;
+    margin-bottom: 2px;
+    padding-block: 0;
+  }
+
+  .show-workspace.run-deck .bgm-queue-heading {
+    margin-top: 2px;
+  }
+
+  .show-workspace.run-deck .queue-row {
+    min-height: 36px;
+    padding-block: 2px;
+  }
+
+  .show-workspace.run-deck .queue-layout-row {
+    margin-block: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 460px) {
+  .show-workspace.run-deck .background-section {
+    padding: 6px 0 6px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Collapsed during a performance, the BGM block was pinned to 6px, so the
+     held track rendered outside it and never appeared. Collapsed now means one
+     visible row - the track that is holding - and no queue chrome. */
+  .show-workspace.run-deck .bgm-queue.is-collapsed {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    padding-block: 0 2px;
+  }
+
+}
+
+@media (max-width: 620px) {
+  /* Content drives the BGM block height on a phone; a 100% height inside an
+     auto row is what squeezed the collapsed queue to 2px. */
+  .show-workspace.run-deck .background-section,
+  .show-workspace.run-deck.is-live .background-section {
+    height: auto;
+  }
+
+  .show-workspace.run-deck .bg-music-container {
+    height: auto;
+    min-height: 0;
+  }
+
+  /* The row's overflow control sits at the right edge, not in a wide column. */
+  .show-workspace.run-deck.is-setup-open .performance-card,
+  .show-workspace.run-deck.is-setup-open .performance-card.active {
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    padding-right: 10px;
+  }
+
+  .show-workspace.run-deck .performance-card .perf-actions,
+  .show-workspace.run-deck .performance-card .performance-card-actions {
+    justify-self: end;
+    margin-left: 0;
+  }
+
+  .show-workspace.run-deck .performance-card button[aria-label^="More options"] {
+    width: 30px;
+    min-width: 30px;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Collapsing the BGM block animates its container to zero height, which also
+     hid the one row a phone should keep: the track that is holding. Keep that
+     row, drop the chrome, and tighten the header around it. */
+  .show-workspace.run-deck .background-section,
+  .show-workspace.run-deck.is-live .background-section {
+    padding: 5px 12px 6px;
+  }
+
+  .show-workspace.run-deck .background-section .section-header {
+    min-height: 26px;
+    height: auto;
+  }
+
+  .show-workspace.run-deck.is-live .background-section .bg-music-container,
+  .show-workspace.run-deck .background-section.queue-collapsed .bg-music-container {
+    height: auto;
+    min-height: 44px;
+    overflow: visible;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .show-workspace.run-deck.is-live .background-section .bgm-queue.is-collapsed,
+  .show-workspace.run-deck .background-section.queue-collapsed .bgm-queue.is-collapsed {
+    height: auto;
+    min-height: 44px;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The overflow control lives inside the title cell, so a third column only
+     reserved dead space on the right. Two columns, edge to edge. */
+  .show-workspace.run-deck.is-setup-open .performance-card,
+  .show-workspace.run-deck.is-setup-open .performance-card.active {
+    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-areas: "header select";
+    padding-right: 6px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Same mechanism iPad portrait uses when a performance is running: the BGM
+     block keeps a fixed compact height showing its heading and the one held
+     track, rather than animating to nothing. */
+  .show-workspace.run-deck .background-section.queue-collapsed .bg-music-container {
+    height: 74px;
+    min-height: 74px;
+    overflow: hidden;
+    /* The collapse animation fades the container to zero opacity and lifts it.
+       On a phone the block stays visible, so it must be undone here too - this
+       is what left an empty box where the held track should be. */
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+
+  .show-workspace.run-deck .background-section.queue-collapsed .bgm-queue.is-collapsed {
+    height: 72px;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Matches the specificity of the live collapse animation so the phone's
+     compact BGM block actually paints its held track. */
+  .show-workspace.run-deck.is-live .background-section.queue-collapsed .bg-music-container {
+    height: 74px;
+    min-height: 74px;
+    overflow: hidden;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  .show-workspace.run-deck.is-live .background-section.queue-collapsed .bgm-queue.is-collapsed {
+    height: 72px;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+}
+
+/* ── Glass on the player ──────────────────────────────────────────────────
+   The live chips already read as frosted pastel; the transport should belong
+   to the same material. Each control is a translucent pane over the stage:
+   blurred backdrop, a light top edge where it catches the light, a hairline
+   pink rim, and a short drop so it still presses like the 2D family. */
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button,
+.run-action-row .run-level-menu > summary,
+.run-setup-header .control-button {
+  background-color: rgba(255, 252, 253, 0.62);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.16) 48%,
+    rgba(249, 214, 231, 0.3) 100%
+  );
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  border-color: rgba(213, 44, 120, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(213, 44, 120, 0.06),
+    0 2px 0 rgba(213, 44, 120, 0.1),
+    0 6px 14px -10px rgba(140, 44, 90, 0.5);
+}
+
+/* The centerpiece keeps more colour in the glass so it still leads. */
+.run-action-row .run-primary-action.is-start {
+  background-color: rgba(252, 226, 238, 0.66);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 240, 247, 0.34) 46%,
+    rgba(246, 196, 221, 0.44) 100%
+  );
+  border-color: rgba(213, 44, 120, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(213, 44, 120, 0.08),
+    0 2px 0 rgba(213, 44, 120, 0.16),
+    0 8px 18px -10px rgba(213, 44, 120, 0.55);
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-primary-action.is-start:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled),
+.run-action-row .run-level-menu > summary:hover {
+  border-color: rgba(213, 44, 120, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(213, 44, 120, 0.08),
+    0 3px 0 rgba(213, 44, 120, 0.14),
+    0 12px 22px -11px rgba(213, 44, 120, 0.55);
+}
+
+.run-action-row .run-primary-action:active:not(:disabled),
+.run-action-row .run-primary-action.is-start:active:not(:disabled),
+.run-action-row .run-end-button:active:not(:disabled),
+.run-action-row .run-rail-button:active:not(:disabled) {
+  box-shadow:
+    inset 0 1px 3px rgba(140, 44, 90, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 1px 2px -1px rgba(213, 44, 120, 0.24);
+}
+
+/* The bar the lineup hangs from is frosted too, so the stage above it reads
+   as one continuous pane rather than two flat blocks. */
+.show-workspace.run-deck.is-setup-open .run-setup-header {
+  background-color: rgba(255, 253, 252, 0.72);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+/* Same material on the seek track, so the transport row is one surface. */
+.run-progress input[type="range"] {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .run-action-row .run-primary-action,
+  .run-action-row .run-primary-action.is-start,
+  .run-action-row .run-end-button,
+  .run-action-row .run-rail-button,
+  .run-action-row .run-level-menu > summary,
+  .show-workspace.run-deck.is-setup-open .run-setup-header {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--surface-raised);
+  }
+}
+
+/* ── One material, one type scale ─────────────────────────────────────────
+   The frosted transport is now the app's finish. Every raised surface uses the
+   same recipe - a translucent pane, a light top edge, a hairline pink rim and
+   a short drop - and every line of text sits on one scale, so the eye reads
+   title, row, then meta without the size guessing changing per surface. */
+:root {
+  --glass-pane: rgba(255, 253, 252, 0.66);
+  --glass-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0.12) 46%,
+    rgba(249, 222, 235, 0.26) 100%
+  );
+  --glass-rim: rgba(213, 44, 120, 0.14);
+  --glass-blur: blur(14px) saturate(1.25);
+  --glass-lift:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 0 rgba(213, 44, 120, 0.05),
+    0 2px 0 rgba(213, 44, 120, 0.07),
+    0 10px 22px -14px rgba(140, 44, 90, 0.45);
+}
+
+.app-header,
+.show-workspace .background-section,
+.show-workspace .performances-section,
+.select-dropdown,
+.library-panel,
+.run-focus-panel {
+  background-color: var(--glass-pane);
+  background-image: var(--glass-sheen);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-rim);
+  box-shadow: var(--glass-lift);
+}
+
+/* Rows are the quiet tier of the same material: they only catch the light
+   when they are current or under a finger. */
+.queue-row,
+.performance-card {
+  background-color: transparent;
+  background-image: none;
+  transition:
+    background-color 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out);
+}
+
+.queue-row:hover,
+.performance-card:hover,
+.queue-row.is-current,
+.performance-card.active,
+.performance-card.is-focused {
+  background-color: rgba(255, 255, 255, 0.5);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  backdrop-filter: blur(8px) saturate(1.15);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Type: one ladder across every surface. */
+.show-workspace .section-title,
+.show-workspace .bgm-header-static,
+.show-workspace .bgm-header-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.run-setup-header,
+.bgm-queue-heading {
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+}
+
+.queue-track-copy strong,
+.performance-card .select-trigger,
+.performance-card .perf-select {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+.perf-duration,
+.queue-row-meta,
+.run-progress span {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.perf-number {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-header,
+  .show-workspace .background-section,
+  .show-workspace .performances-section,
+  .select-dropdown,
+  .library-panel,
+  .run-focus-panel,
+  .queue-row:hover,
+  .performance-card:hover,
+  .queue-row.is-current,
+  .performance-card.active {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--surface-raised);
+    background-image: none;
+  }
+}
+
+/* Handsets keep their tighter scale on top of the shared material. */
+@media (max-width: 620px), (orientation: landscape) and (max-height: 460px) {
+  .show-workspace.run-deck .section-title,
+  .show-workspace.run-deck .bgm-header-static,
+  .show-workspace.run-deck .bgm-header-title {
+    font-size: 16px;
+  }
+
+  .show-workspace.run-deck .run-setup-header,
+  .show-workspace.run-deck .bgm-queue-heading {
+    font-size: 10.5px;
+  }
+
+  .show-workspace.run-deck .queue-track-copy strong {
+    font-size: 12.5px;
+  }
+}
+
+/* State survives the material: the control that is currently the operator's
+   move keeps the pink pane, everything else stays clear glass. */
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume {
+  background-color: rgba(252, 226, 238, 0.62);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 240, 247, 0.3) 46%,
+    rgba(246, 200, 223, 0.4) 100%
+  );
+  border-color: rgba(213, 44, 120, 0.26);
+  color: #a51455;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    inset 0 -1px 0 rgba(213, 44, 120, 0.08),
+    0 2px 0 rgba(213, 44, 120, 0.16),
+    0 8px 18px -11px rgba(213, 44, 120, 0.5);
+}
+
+.run-action-row .run-end-button {
+  color: #8e3357;
+  border-color: rgba(140, 60, 95, 0.16);
+}
+
+/* The live row and the held BGM track read as tinted glass, not plain white. */
+.performance-card.active,
+.queue-row.is-current {
+  background-color: rgba(252, 228, 239, 0.5);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(250, 219, 233, 0.28) 100%
+  );
+  box-shadow:
+    inset 3px 0 0 var(--pink),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.performance-card.completed {
+  opacity: 0.72;
+}
+
+.performance-card.is-focused:not(.active) {
+  background-color: rgba(255, 245, 250, 0.55);
+  box-shadow:
+    inset 3px 0 0 var(--pink-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Blend pass: the material should read as a change in light, not a change in
+   colour. Tints drop toward the paper, rims soften, and the active marker
+   becomes a thin edge rather than a bar. */
+:root {
+  --glass-rim: rgba(213, 44, 120, 0.1);
+  --glass-lift:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 0 rgba(213, 44, 120, 0.045),
+    0 10px 20px -16px rgba(140, 44, 90, 0.36);
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button,
+.run-action-row .run-level-menu > summary,
+.run-setup-header .control-button {
+  border-color: rgba(213, 44, 120, 0.11);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.1) 52%,
+    rgba(249, 226, 238, 0.18) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 0 rgba(213, 44, 120, 0.06),
+    0 6px 14px -12px rgba(140, 44, 90, 0.4);
+}
+
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume {
+  background-color: rgba(253, 236, 244, 0.55);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.68) 0%,
+    rgba(255, 246, 250, 0.22) 52%,
+    rgba(248, 216, 232, 0.26) 100%
+  );
+  border-color: rgba(213, 44, 120, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 1px 0 rgba(213, 44, 120, 0.09),
+    0 8px 16px -13px rgba(213, 44, 120, 0.42);
+}
+
+.performance-card.active,
+.queue-row.is-current {
+  background-color: rgba(253, 238, 245, 0.42);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(252, 232, 241, 0.18) 100%
+  );
+  box-shadow:
+    inset 2px 0 0 rgba(213, 44, 120, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.performance-card.is-focused:not(.active) {
+  background-color: rgba(255, 250, 252, 0.45);
+  box-shadow:
+    inset 2px 0 0 rgba(213, 44, 120, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.queue-row:hover,
+.performance-card:hover {
+  background-color: rgba(255, 255, 255, 0.34);
+  background-image: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-primary-action.is-start:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled),
+.run-action-row .run-level-menu > summary:hover {
+  border-color: rgba(213, 44, 120, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 0 rgba(213, 44, 120, 0.08),
+    0 12px 20px -14px rgba(213, 44, 120, 0.45);
+}
+
+/* One recipe, two strengths. The resting pane is the held-track row: a soft
+   pink wash fading to nothing, a light rim rather than a drawn border, and no
+   hard edge anywhere. Active components use the same recipe turned up. */
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button,
+.run-action-row .run-level-menu > summary,
+.run-setup-header .control-button {
+  border-color: rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  background-color: rgba(250, 240, 245, 0.42);
+  background-image: linear-gradient(
+    100deg,
+    rgba(247, 226, 236, 0.62) 0%,
+    rgba(255, 252, 253, 0.34) 58%,
+    rgba(255, 255, 255, 0.14) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 1px 1px rgba(140, 44, 90, 0.045);
+}
+
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume {
+  border-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(248, 222, 235, 0.6);
+  background-image: linear-gradient(
+    100deg,
+    rgba(243, 205, 224, 0.82) 0%,
+    rgba(253, 235, 244, 0.5) 60%,
+    rgba(255, 252, 254, 0.24) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 3px -1px rgba(140, 44, 90, 0.08);
+}
+
+.run-action-row .run-primary-action:hover:not(:disabled),
+.run-action-row .run-primary-action.is-start:hover:not(:disabled),
+.run-action-row .run-end-button:hover:not(:disabled),
+.run-action-row .run-rail-button:hover:not(:disabled),
+.run-action-row .run-level-menu > summary:hover {
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 4px 8px -4px rgba(140, 44, 90, 0.14);
+}
+
+.run-action-row .run-primary-action:active:not(:disabled),
+.run-action-row .run-primary-action.is-start:active:not(:disabled),
+.run-action-row .run-end-button:active:not(:disabled),
+.run-action-row .run-rail-button:active:not(:disabled) {
+  box-shadow:
+    inset 0 1px 3px rgba(140, 44, 90, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Rows follow the same wash, without a rim. */
+.performance-card.active,
+.queue-row.is-current {
+  border-radius: 12px;
+  background-color: rgba(248, 226, 238, 0.5);
+  background-image: linear-gradient(
+    100deg,
+    rgba(243, 208, 226, 0.66) 0%,
+    rgba(253, 238, 245, 0.4) 58%,
+    rgba(255, 253, 254, 0.16) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.performance-card.is-focused:not(.active) {
+  border-radius: 12px;
+  background-color: rgba(253, 243, 248, 0.44);
+  background-image: linear-gradient(
+    100deg,
+    rgba(250, 234, 242, 0.5) 0%,
+    rgba(255, 253, 254, 0.2) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 620px), (orientation: landscape) and (max-height: 460px) {
+  /* Opening the level must not rearrange the transport. The slider hangs under
+     its own control as a panel, clamped to the screen. */
+  .run-action-row .run-level-menu {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .run-action-row .run-level-menu[open] {
+    flex: 0 0 auto;
+  }
+
+  .run-action-row .run-level-menu .run-level-control {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: auto;
+    z-index: 20;
+    width: min(240px, calc(100vw - 36px));
+    margin-top: 0;
+  }
+
+  .show-workspace.run-deck .run-action-row {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Quieter glass: on a white stage the wash should be felt, not seen. The pink
+   stops drop to a whisper and the sheen runs top-down so nothing reads as a
+   diagonal streak. */
+.run-action-row .run-primary-action,
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume,
+.run-action-row .run-end-button,
+.run-action-row .run-rail-button,
+.run-action-row .run-level-menu > summary,
+.run-setup-header .control-button {
+  border-color: rgba(255, 255, 255, 0.62);
+  background-color: rgba(252, 246, 249, 0.5);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(250, 238, 244, 0.16) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 1px 1px rgba(140, 44, 90, 0.03);
+}
+
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume {
+  background-color: rgba(250, 232, 241, 0.56);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(246, 218, 233, 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(140, 44, 90, 0.05);
+}
+
+.performance-card.active,
+.queue-row.is-current {
+  background-color: rgba(251, 240, 246, 0.44);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(249, 231, 240, 0.2) 100%
+  );
+}
+
+.app-header,
+.show-workspace .background-section,
+.show-workspace .performances-section,
+.run-focus-panel,
+.select-dropdown,
+.library-panel {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(252, 245, 249, 0.1) 100%
+  );
+}
+
+/* The level popover is a slim strip: slider and value on one line. */
+.run-action-row .run-level-menu .run-level-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(230px, calc(100vw - 36px));
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 12px;
+  background-color: rgba(252, 246, 249, 0.86);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 8px 18px -12px rgba(140, 44, 90, 0.4);
+}
+
+.run-action-row .run-level-menu .run-level-control input[type="range"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.run-action-row .run-level-menu .run-level-control > span,
+.run-action-row .run-level-menu .run-level-control::after {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Anchor the level strip under its own control on every size. */
+.run-action-row .run-level-menu {
+  position: relative;
+}
+
+.run-action-row .run-level-menu .run-level-control {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  z-index: 20;
+  margin: 0;
+}
+
+/* Text belongs to the material too: warm plum ink instead of near-black, one
+   step less weight contrast, and meta that sits back into the glass. */
+.show-workspace .run-focus-heading h2,
+.show-workspace .run-complete-state h2 {
+  color: #3b2630;
+  font-weight: 800;
+}
+
+.show-workspace .queue-track-copy strong,
+.show-workspace .performance-card .select-trigger {
+  color: #4a3540;
+  font-weight: 620;
+}
+
+.show-workspace .run-setup-header,
+.show-workspace .bgm-queue-heading {
+  color: rgba(112, 94, 102, 0.9);
+  font-weight: 650;
+}
+
+.show-workspace .perf-duration,
+.show-workspace .run-progress span {
+  color: rgba(146, 127, 135, 0.9);
+  font-weight: 600;
+}
+
+.run-action-row .run-primary-action,
+.run-action-row .run-end-button,
+.run-action-row .run-level-menu > summary {
+  color: #8f3560;
+  font-weight: 700;
+}
+
+.run-action-row .run-primary-action.is-start,
+.run-action-row .run-primary-action.is-pause,
+.run-action-row .run-primary-action.is-resume {
+  color: #a1235c;
+  font-weight: 750;
+}
+
+.show-workspace .perf-number {
+  color: rgba(184, 23, 97, 0.86);
+  font-weight: 750;
+}
+
+/* A floating strip must read as above the stage, not blended into it. */
+.run-action-row .run-level-menu .run-level-control {
+  background-color: rgba(255, 252, 253, 0.97);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 26px -14px rgba(140, 44, 90, 0.55),
+    0 2px 6px -3px rgba(140, 44, 90, 0.18);
+}
+
+/* Anchor the level strip to the transport row, not to the small control it
+   hangs off. Off a narrow trigger near the left edge - the ready state, where
+   the row is just Start and the level - a control-anchored panel ran off the
+   screen. */
+.show-workspace.run-deck .run-action-row {
+  position: relative;
+}
+
+.run-action-row .run-level-menu {
+  position: static;
+}
+
+.run-action-row .run-level-menu .run-level-control {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  max-width: calc(100% - 4px);
+}
+
+/* ── Library, folders, multi-select ───────────────────────────────────────
+   The library is where an import becomes a show: folders sort it, selection
+   moves many at once. Same glass, same type ladder, no grey hover slabs. */
+.audio-library-panel {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  max-height: min(86dvh, 760px);
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 18px;
+  background-color: rgba(255, 252, 253, 0.97);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 26px 60px -28px rgba(140, 44, 90, 0.55);
+  overflow: hidden;
+}
+
+.audio-library-header h3 {
+  margin: 3px 0 0;
+  color: #3b2630;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.library-folder-bar,
+.select-folder-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.library-folder-chip,
+.select-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  background-color: rgba(250, 242, 246, 0.7);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 130ms var(--ease-out), color 130ms var(--ease-out);
+}
+
+.library-folder-chip em,
+.select-folder-chip em {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.library-folder-chip:hover,
+.select-folder-chip:hover {
+  background-color: rgba(252, 236, 244, 0.85);
+}
+
+.library-folder-chip.is-active,
+.select-folder-chip.is-active {
+  border-color: rgba(213, 44, 120, 0.24);
+  background-color: rgba(248, 216, 232, 0.8);
+  color: #a1235c;
+}
+
+.library-folder-chip.is-active em,
+.select-folder-chip.is-active em { color: rgba(161, 35, 92, 0.7); }
+
+.library-folder-chip.is-add { padding-inline: 9px; color: var(--pink-strong); }
+
+.library-folder-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.library-folder-tools .control-button {
+  min-height: 30px;
+  padding-inline: 9px;
+  font-size: 11.5px;
+}
+
+.library-folder-note { color: var(--ink-faint); font-size: 11px; font-weight: 600; }
+
+.library-folder-rename {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(213, 44, 120, 0.2);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.library-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.library-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.library-select-all:disabled { opacity: 0.45; cursor: default; }
+.library-select-count { color: var(--pink-strong); font-size: 11.5px; font-weight: 750; }
+
+.library-checkbox {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(140, 60, 95, 0.24);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #fff;
+}
+
+.library-select-all.is-active .library-checkbox,
+.library-track-row.is-selected .library-checkbox {
+  border-color: transparent;
+  background: var(--pink);
+}
+
+.library-results {
+  display: grid;
+  gap: 2px;
+  max-height: min(46dvh, 420px);
+  padding-right: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.library-results::-webkit-scrollbar { width: 0; }
+
+.library-track-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 4px 6px 4px 0;
+  border-radius: 11px;
+  background: transparent;
+  transition: background-color 130ms var(--ease-out);
+}
+
+.library-track-row:hover { background-color: rgba(255, 255, 255, 0.55); }
+
+.library-track-row.is-selected {
+  background-color: rgba(250, 232, 241, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.library-row-select {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.library-track-copy { display: grid; gap: 1px; min-width: 0; }
+
+.library-track-copy strong {
+  overflow: hidden;
+  color: #4a3540;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-track-folder {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.library-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.library-add-button,
+.queued-label {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 9px;
+  background-color: rgba(250, 240, 245, 0.7);
+  color: var(--pink-strong);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.queued-label {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+.library-remove-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #a8637f;
+  cursor: pointer;
+}
+
+.library-remove-button:hover { background: rgba(253, 232, 240, 0.8); }
+
+.library-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(213, 44, 120, 0.16);
+  border-radius: 12px;
+  background-color: rgba(252, 238, 245, 0.85);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.library-bulk-targets { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.library-bulk-target {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.75);
+  color: #a1235c;
+  font-size: 11.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.library-bulk-target:hover { background-color: #fff; }
+.library-bulk-remove { margin-left: auto; }
+
+.library-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.library-footer-actions .control-button {
+  min-height: 34px;
+  padding-inline: 12px;
+  font-size: 12.5px;
+}
+
+.library-clear-button { margin-left: auto; }
+
+/* Multi-select inside the track picker. */
+.select-folder-bar { padding: 8px 8px 0; }
+
+.select-check {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border: 1px solid rgba(140, 60, 95, 0.24);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #fff;
+}
+
+.select-option.selected .select-check {
+  border-color: transparent;
+  background: var(--pink);
+}
+
+.select-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.select-confirm-button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid rgba(213, 44, 120, 0.22);
+  border-radius: 10px;
+  background-color: rgba(248, 222, 235, 0.8);
+  color: #a1235c;
+  font-size: 12.5px;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.select-confirm-button:disabled { opacity: 0.45; cursor: default; }
+
+.add-performance-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 10px;
+}
+
+.add-performance-row .searchable-select { flex: 0 1 auto; }
+
+.add-performance-row .add-performance-trigger .select-trigger,
+.add-performance-row .add-performance-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 10px;
+  background-color: rgba(250, 240, 245, 0.6);
+  color: var(--pink-strong);
+  font-size: 12.5px;
+  font-weight: 750;
+}
+
+@media (max-width: 620px) {
+  /* Dialogs are sheets on a phone: full width inside the safe area, never
+     anchored off the edge, and scrollable when the copy is long. */
+  .output-dialog-backdrop {
+    place-items: end center;
+    padding: 12px 10px max(12px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .output-dialog,
+  .reset-dialog {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(84dvh, calc(100dvh - 80px));
+    padding: 18px 16px;
+    border-radius: 20px;
+  }
+
+  .output-dialog-header h2,
+  .reset-dialog h2 {
+    font-size: 18px;
+    line-height: 1.3;
+  }
+
+  .output-dialog-actions,
+  .reset-dialog-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .audio-library-panel {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    max-height: min(82dvh, calc(100dvh - 90px));
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .library-results { max-height: min(40dvh, 360px); }
+
+  .library-track-row { grid-template-columns: 28px minmax(0, 1fr) auto; min-height: 44px; }
+
+  .add-performance-row { padding: 8px 10px 10px; }
+}
+
+/* ── Library, minimal pass ────────────────────────────────────────────────
+   One title, one row of folders, one search line that carries the few actions
+   that belong to the current folder. Nothing else appears until it is needed. */
+.audio-library-panel { gap: 8px; padding: 14px; }
+
+.audio-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.audio-library-header h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.audio-library-header h3 em {
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.library-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.library-close:hover { background: rgba(252, 238, 245, 0.8); }
+
+.library-folder-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  margin: 0 -2px;
+  padding: 1px 2px 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.library-folder-bar::-webkit-scrollbar { height: 0; }
+
+.library-folder-chip {
+  flex: 0 0 auto;
+  gap: 5px;
+  min-height: 27px;
+  padding: 0 9px;
+  border-color: transparent;
+  border-radius: 8px;
+  background-color: rgba(248, 240, 244, 0.55);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.library-folder-chip.is-active {
+  border-color: transparent;
+  background-color: rgba(247, 214, 231, 0.7);
+}
+
+.library-folder-chip.is-add {
+  padding-inline: 8px;
+  background-color: transparent;
+}
+
+.library-folder-chip.is-add:hover { background-color: rgba(248, 240, 244, 0.7); }
+
+.library-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 8px 0 11px;
+  border: 1px solid rgba(140, 60, 95, 0.12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-faint);
+}
+
+.library-search-field:focus-within {
+  border-color: rgba(213, 44, 120, 0.22);
+  box-shadow: 0 0 0 3px rgba(213, 44, 120, 0.08);
+}
+
+.library-search-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.library-select-all {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(248, 240, 244, 0.8);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.library-select-all.is-active { background: rgba(247, 214, 231, 0.9); color: #a1235c; }
+
+.library-inline-action {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.library-inline-action:hover { background: rgba(252, 238, 245, 0.9); color: var(--pink-strong); }
+
+.library-folder-rename-row { display: flex; gap: 6px; }
+
+.library-folder-rename {
+  flex: 1 1 auto;
+  min-height: 34px;
+  border-color: rgba(140, 60, 95, 0.14);
+  border-radius: 10px;
+}
+
+.library-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 26px 12px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.library-footer-actions .control-button {
+  min-height: 32px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.library-footer-actions .library-import-button { color: var(--pink-strong); }
+.library-footer-actions .control-button:hover { background: rgba(252, 238, 245, 0.8); }
+
+.library-bulk-bar {
+  padding: 7px 9px;
+  border-color: transparent;
+  border-radius: 11px;
+  background-color: rgba(250, 236, 243, 0.75);
+}
+
+.library-bulk-bar > span { color: var(--ink-soft); font-size: 11px; }
+
+.library-bulk-target {
+  min-height: 26px;
+  padding: 0 9px;
+  border-color: transparent;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+/* Row layout owned by the panel, so the older library rules can't reflow it. */
+.audio-library-panel .library-track-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 3px 4px 3px 0;
+  border: 0;
+  border-radius: 10px;
+}
+
+.audio-library-panel .library-track-copy {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.audio-library-panel .library-track-copy strong {
+  display: block;
+  overflow: hidden;
+  color: #4a3540;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-library-panel .library-track-folder {
+  color: var(--ink-faint);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.audio-library-panel .library-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.audio-library-panel .library-add-button,
+.audio-library-panel .queued-label {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.audio-library-panel .queued-label { background: none; padding-inline: 6px; }
+
+.audio-library-panel .library-add-button { background-color: rgba(248, 240, 244, 0.9); }
+
+.audio-library-panel .library-remove-button { width: 26px; height: 26px; }
+
+.audio-library-panel .library-row-select { width: 26px; height: 26px; }
+
+.audio-library-panel .library-checkbox { width: 17px; height: 17px; border-radius: 5px; }
+
+/* The bulk bar is one line: what, where, and a quiet remove. */
+.audio-library-panel .library-bulk-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.audio-library-panel .library-bulk-bar::-webkit-scrollbar { height: 0; }
+.audio-library-panel .library-bulk-bar > span { flex: 0 0 auto; white-space: nowrap; }
+.audio-library-panel .library-bulk-targets { flex: 0 0 auto; flex-wrap: nowrap; }
+
+.audio-library-panel .library-bulk-remove {
+  flex: 0 0 auto;
+  min-height: 26px;
+  margin-left: 2px;
+  padding-inline: 8px;
+  border: 0;
+  background: none;
+  color: #a8637f;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* An older rule pinned the row actions into the title's column, which stacked
+   "Queued" and the bin on top of the track name. They own the third column. */
+.audio-library-panel .library-track-row > .library-row-select {
+  grid-area: auto;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.audio-library-panel .library-track-row > .library-track-copy {
+  grid-area: auto;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.audio-library-panel .library-track-row > .library-row-actions {
+  grid-area: auto;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+/* Row actions are two matching icons, not a word and a bin. */
+.audio-library-panel .library-icon-action {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color 130ms var(--ease-out), color 130ms var(--ease-out);
+}
+
+.audio-library-panel .library-icon-action:hover:not(:disabled) {
+  background: rgba(252, 238, 245, 0.9);
+  color: var(--pink-strong);
+}
+
+.audio-library-panel .library-icon-action.is-on {
+  color: rgba(184, 23, 97, 0.55);
+  cursor: default;
+}
+
+@media (max-width: 620px) {
+  /* The BGM block was carrying tablet padding on a phone. */
+  .show-workspace.run-deck .background-section,
+  .show-workspace.run-deck.is-live .background-section {
+    padding: 4px 10px 5px;
+  }
+
+  .show-workspace.run-deck .bgm-queue { padding-block: 0 2px; }
+  .show-workspace.run-deck .bgm-queue-heading { min-height: 24px; margin-top: 0; }
+  .show-workspace.run-deck .queue-row { min-height: 34px; }
+  .show-workspace.run-deck .queue-layout-row { padding-block: 1px; }
+}
+
+/* In multi-select the label follows its checkbox; the old space-between rule
+   pushed every track name to the far edge. */
+.select-options .select-option:has(.select-check) {
+  justify-content: flex-start;
+  gap: 10px;
+  text-align: left;
+}
+
+.select-options .select-option .select-check + span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
