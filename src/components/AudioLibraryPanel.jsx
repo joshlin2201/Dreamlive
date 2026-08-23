@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FolderOpen, FolderPlus, ListPlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { filterAudioLibrary } from '../audio/playlist';
+import { prefersAutoFocus } from '../ui/focus';
 import {
   ALL_FOLDERS,
   UNSORTED,
@@ -44,7 +45,7 @@ function AudioLibraryPanel({
 
   useEffect(() => {
     if (!open) return undefined;
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    const frame = window.requestAnimationFrame(() => { if (prefersAutoFocus()) inputRef.current?.focus(); });
     const dismiss = event => {
       if (panelRef.current?.contains(event.target)) return;
       if (event.target.closest?.('[aria-controls="bgm-library-panel"]')) return;

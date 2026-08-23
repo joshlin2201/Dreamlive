@@ -8892,3 +8892,18 @@ input:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Every scroller in this app is dragged with a thumb: give each one momentum
+   and claim the vertical gesture, so a long list inside a fixed popover does
+   not hand the drag back to the page. */
+.select-options,
+.library-results,
+.bgm-queue,
+.performances-grid,
+.audio-library-panel {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.select-dropdown { touch-action: pan-y; }

@@ -56,6 +56,7 @@ import {
 import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import AudioVisualizer from './components/AudioVisualizer';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
+import { prefersAutoFocus } from './ui/focus';
 import {
   ALL_FOLDERS,
   assignFolder,
@@ -199,7 +200,11 @@ function SearchableSelect({
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
         preferredWidth: compactActions && menuStage === 'actions' ? 190 : menuWidth,
-        preferredHeight: compactActions && menuStage === 'actions' ? 108 : 320,
+        // A phone has the height; the old flat 320 left the track list showing
+        // six rows and made a long library feel unscrollable.
+        preferredHeight: compactActions && menuStage === 'actions'
+          ? 108
+          : Math.min(460, Math.max(280, Math.round(window.innerHeight * 0.58))),
         align: menuAlign,
       }));
     };
@@ -207,6 +212,7 @@ function SearchableSelect({
     window.addEventListener('resize', updatePosition);
     window.addEventListener('scroll', updatePosition, true);
     const focusFrame = window.requestAnimationFrame(() => {
+      if (!prefersAutoFocus()) return;
       if (!compactActions || menuStage === 'tracks') searchRef.current?.focus();
     });
 
@@ -474,6 +480,7 @@ const DEFAULT_AUDIO_FILES = [];
 const DEFAULT_PERFORMANCE_COUNT = 4;
 const performanceArray = (value, count = DEFAULT_PERFORMANCE_COUNT) => Array.from({ length: count }, () => value);
 const displayTrackName = (name) => name.replace(/\.(mp3|m4a|aac|wav|ogg|flac)$/i, '');
+
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
