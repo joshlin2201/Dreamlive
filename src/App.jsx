@@ -55,6 +55,8 @@ import {
 } from './audio/libraryStorage';
 import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import AudioVisualizer from './components/AudioVisualizer';
+import { ANALYSIS_SAMPLE_RATE } from './audio/waveform';
+import { computeSpectrogram } from './audio/spectrogram';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
 import { prefersAutoFocus } from './ui/focus';
 import {
@@ -512,6 +514,12 @@ function App() {
   // for that track's audio to be ready, so the intent is held here and an
   // effect below plays it the moment both are true.
   const resumeQueuedBgRef = useRef(false);
+  // One offline spectrogram per track source: real frequency content for the
+  // visualizer, without routing playback through the Web Audio graph.
+  const trackPeaksRef = useRef(new Map());
+  const bgPeaksRef = useRef(null);
+  const perfPeaksRef = useRef(null);
+  const peakWorkRef = useRef(new Set());
   const roomBackstopTimeoutRef = useRef(null);
   const bgPlaylistRef = useRef([]);
   const [bgQueueExpanded, setBgQueueExpanded] = useState(true);
@@ -1493,10 +1501,60 @@ function App() {
     }
   }, []);
 
+  // Decode once, offline, at a low rate. An OfflineAudioContext renders into
+  // memory and never claims the audio session, so this cannot interrupt a track
+  // that is playing - which is exactly why the live analyser had to go.
+  const loadTrackPeaks = async (source) => {
+    if (!source) return null;
+    const cached = trackPeaksRef.current.get(source);
+    if (cached) return cached;
+    if (peakWorkRef.current.has(source)) return null;
+    peakWorkRef.current.add(source);
+    try {
+      const OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OfflineContext) return null;
+      const response = await fetch(source);
+      const buffer = await response.arrayBuffer();
+      const context = new OfflineContext(1, ANALYSIS_SAMPLE_RATE, ANALYSIS_SAMPLE_RATE);
+      const decoded = await context.decodeAudioData(buffer);
+      const peaks = computeSpectrogram(decoded.getChannelData(0));
+      // Only the tracks in play are worth keeping in memory on an older iPad.
+      if (trackPeaksRef.current.size > 12) trackPeaksRef.current.clear();
+      trackPeaksRef.current.set(source, peaks);
+      return peaks;
+    } catch (error) {
+      console.warn('Could not read levels for the visualizer:', error);
+      return null;
+    } finally {
+      peakWorkRef.current.delete(source);
+    }
+  };
+
   const trackSource = trackRef => (
     isManagedAudioRef(trackRef) ? (managedSources[trackRef] || '') : trackRef
   );
   const bgTrackSource = trackSource(bgTrack);
+
+  useEffect(() => {
+    let cancelled = false;
+    bgPeaksRef.current = null;
+    if (!bgTrackSource) return undefined;
+    loadTrackPeaks(bgTrackSource).then(peaks => {
+      if (!cancelled) bgPeaksRef.current = peaks;
+    });
+    return () => { cancelled = true; };
+  }, [bgTrackSource]);
+
+  useEffect(() => {
+    let cancelled = false;
+    perfPeaksRef.current = null;
+    const source = currentPerformance === null ? '' : trackSource(perfTracks[currentPerformance]);
+    if (!source) return undefined;
+    loadTrackPeaks(source).then(peaks => {
+      if (!cancelled) perfPeaksRef.current = peaks;
+    });
+    return () => { cancelled = true; };
+  }, [currentPerformance, perfTracks, managedSources]);
 
   const trackName = (path) => {
     const name = audioFiles.find(file => file.path === path)?.name;
@@ -2548,6 +2606,8 @@ function App() {
                   <div className={`bgm-visualizer-slot ${bgPlaying && currentPerformance === null ? 'is-active' : ''}`}>
                     <AudioVisualizer
                       analyserRef={analyserNodeRef}
+                      peaksRef={bgPeaksRef}
+                      sourceRef={bgAudioRef}
                       active={bgPlaying && currentPerformance === null}
                       variant="compact"
                       status="BGM"
@@ -2737,6 +2797,8 @@ function App() {
                     <div className="run-signal-strip">
                       <AudioVisualizer
                         analyserRef={analyserNodeRef}
+                        peaksRef={perfPeaksRef}
+                        sourceRef={{ current: perfAudioRefs.current[focusPerformanceIndex] }}
                         active={perfPlaying[focusPerformanceIndex] || isFading}
                         variant="focus"
                         status={isFading

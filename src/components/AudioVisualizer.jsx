@@ -4,14 +4,25 @@ import {
   decaySpectrum,
   smoothSpectrum,
 } from '../audio/spectrum';
+import { bandsAtPosition, hasSpectrogram } from '../audio/spectrogram';
 
 const BAR_COUNT = 72;
 
-function AudioVisualizer({ analyserRef, active = false, variant = 'compact', status = 'Paused' }) {
+// `sourceRef` is the element being played. With playback routed straight
+// through it there is no AnalyserNode, so the bars read the track's decoded
+// peaks against the playhead instead of a live spectrum.
+function AudioVisualizer({
+  analyserRef,
+  peaksRef,
+  sourceRef,
+  active = false,
+  variant = 'compact',
+  status = 'Paused',
+}) {
   const canvasRef = useRef(null);
   const barsRef = useRef(Array(BAR_COUNT).fill(0));
   const targetRef = useRef(Array(BAR_COUNT).fill(0));
-  const peaksRef = useRef(Array(BAR_COUNT).fill(0));
+  const peaksRef2 = useRef(Array(BAR_COUNT).fill(0));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -78,7 +89,7 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
           context.fillRect(x, y, barWidth, amplitude);
         }
         if (active) {
-          const peakY = Math.max(density, baseline - (peaksRef.current[index] * height * 0.96));
+          const peakY = Math.max(density, baseline - (peaksRef2.current[index] * height * 0.96));
           context.globalAlpha = 0.58;
           context.fillRect(x, peakY, barWidth, Math.max(1, density * 0.55));
           context.globalAlpha = 1;
@@ -97,8 +108,30 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
       let settled = false;
       if (timestamp - lastSample >= interval) {
         const analyser = analyserRef?.current;
+        const spectrogram = peaksRef?.current;
+        const media = sourceRef?.current;
+        const offline = Boolean(active && !analyser && hasSpectrogram(spectrogram) && media);
         const live = Boolean(active && analyser);
-        if (live) {
+        if (offline) {
+          const bars = bandsAtPosition(spectrogram, {
+            position: media.currentTime,
+            duration: media.duration,
+            barCount: BAR_COUNT,
+          });
+          for (let index = 0; index < bars.length; index += 1) {
+            targetRef.current[index] = bars[index];
+            peaksRef2.current[index] = Math.max(
+              bars[index],
+              peaksRef2.current[index] - (reducedMotion ? 0.08 : 0.025)
+            );
+          }
+          smoothSpectrum(
+            barsRef.current,
+            targetRef.current,
+            reducedMotion ? { attack: 0.5, release: 0.35 } : { attack: 0.72, release: 0.3 },
+            barsRef.current
+          );
+        } else if (live) {
           if (!frequencyData || frequencyData.length !== analyser.frequencyBinCount) {
             frequencyData = new Uint8Array(analyser.frequencyBinCount);
           }
@@ -112,9 +145,9 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
             const gatedLevel = Math.max(0, (targetRef.current[index] - 0.025) * adaptiveGain);
             const spectralLift = 1.22 + ((index / (targetRef.current.length - 1)) * 0.34);
             targetRef.current[index] = Math.min(1, Math.pow(gatedLevel, 0.68) * spectralLift);
-            peaksRef.current[index] = Math.max(
+            peaksRef2.current[index] = Math.max(
               targetRef.current[index],
-              peaksRef.current[index] - (reducedMotion ? 0.08 : 0.025)
+              peaksRef2.current[index] - (reducedMotion ? 0.08 : 0.025)
             );
           }
           smoothSpectrum(
@@ -125,13 +158,13 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
           );
         } else {
           decaySpectrum(barsRef.current, silentBars, reducedMotion ? 0.55 : 0.2, barsRef.current);
-          decaySpectrum(peaksRef.current, silentBars, reducedMotion ? 0.55 : 0.2, peaksRef.current);
+          decaySpectrum(peaksRef2.current, silentBars, reducedMotion ? 0.55 : 0.2, peaksRef2.current);
           settled = barsRef.current.every(value => value < 0.002);
         }
         draw(barsRef.current);
         lastSample = timestamp;
       }
-      if ((active && analyserRef?.current) || !settled) scheduleFrame();
+      if (active || !settled) scheduleFrame();
     };
 
     const handleVisibilityChange = () => {
@@ -156,7 +189,7 @@ function AudioVisualizer({ analyserRef, active = false, variant = 'compact', sta
       observer?.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [active, analyserRef, variant]);
+  }, [active, analyserRef, peaksRef, sourceRef, variant]);
 
   return (
     <div className={`audio-visualizer ${variant} ${active ? 'is-active' : ''}`} role="img" aria-label={status}>
