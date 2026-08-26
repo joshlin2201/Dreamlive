@@ -70,8 +70,10 @@ import {
   trackFolder,
 } from './audio/folders';
 
-// The room queue is the BGM folder. Named once so the two never drift apart.
+// The room queue is the BGM folder, and the lineup browser opens on the
+// performance folder. Named once so the two never drift apart from the UI.
 const BGM_FOLDER = 'BGM';
+const PERFORMANCE_FOLDER = 'Performance';
 import BgmQueue from './components/BgmQueue';
 import './App.css';
 
@@ -558,7 +560,9 @@ function App() {
       return normalizeFolderState();
     }
   });
-  const [performanceFolder, setPerformanceFolder] = useState(ALL_FOLDERS);
+  // The performance browser opens on the folder it is for. Every other folder is
+  // one chip away, so nothing is hidden - it just starts where the work is.
+  const [performanceFolder, setPerformanceFolder] = useState(PERFORMANCE_FOLDER);
   const bgAudioRef = useRef(null);
   const bgTrack = bgPlaylist[bgIndex] || '';
 
