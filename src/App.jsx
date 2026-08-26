@@ -1069,56 +1069,34 @@ function App() {
   }, [audioFiles, bgPlaylist, bgIndex, repeatPlaylist, loopCurrentTrack, perfTracks, bgVolume, perfVolumes]);
 
   useEffect(() => {
-    const recover = async () => {
+    // Returning to the foreground only refreshes what is on screen. It does
+    // not resume, reactivate or probe anything: switching apps, locking and
+    // unlocking all keep the show playing on their own, and every case that
+    // stopped it was one where this handler did something about it.
+    const recover = () => {
       if (document.visibilityState !== 'visible') return;
-      const ctx = audioContextRef.current;
-      if (ctx && ctx.state !== 'running') {
-        try { await ctx.resume(); } catch (error) { /* handled by the next user action */ }
-      }
-
       const playback = playbackStateRef.current;
-      if (playback.currentPerformance !== null) {
-        const index = playback.currentPerformance;
-        const audio = perfAudioRefs.current[index];
-        // Coming back from the background, the rendered playhead is as stale as
-        // the time the app spent away. Snap it to the element before anything
-        // else reads it.
-        if (audio && Number.isFinite(audio.currentTime)) {
-          const elapsed = audio.currentTime;
-          setPerfProgress(previous => previous.map((value, trackIndex) => (
-            trackIndex === index ? elapsed : value
-          )));
-        }
-        if (playback.perfPlaying[index] && audio?.paused) {
-          // The show was running when we left. A paused element here means iOS
-          // interrupted it, not that the operator pressed anything - so put it
-          // back before reporting a pause nobody asked for.
-          const resumed = await audio.play().then(() => true).catch(() => false);
-          if (!resumed) {
-            setPerfPlaying(previous => previous.map((playing, trackIndex) => (
-              trackIndex === index ? false : playing
-            )));
-            setShowPhase(SHOW_PHASE.PAUSED);
-            showNotice(`Performance ${index + 1} paused after an audio interruption.`);
-          }
-        }
-      } else if (playback.bgPlaying && bgAudioRef.current?.paused) {
-        try {
-          await bgAudioRef.current.play();
-        } catch (error) {
-          setBgPlaying(false);
-          setShowError('BGM paused after an audio interruption. Tap Play to resume.');
-          setShowPhase(SHOW_PHASE.ERROR);
-        }
-      }
+      if (playback.currentPerformance === null) return;
+      const index = playback.currentPerformance;
+      const audio = perfAudioRefs.current[index];
+      if (!audio || !Number.isFinite(audio.currentTime)) return;
+      const elapsed = audio.currentTime;
+      setPerfProgress(previous => previous.map((value, trackIndex) => (
+        trackIndex === index ? elapsed : value
+      )));
     };
+
     // Native side reactivated the audio session after a call, Siri, or a media
     // services reset. The app may still be in the background here, so this path
     // cannot wait for visibility the way the others do.
     const restoreAfterSession = async () => {
+      // iOS says the session was genuinely interrupted - a call, Siri, media
+      // services resetting. Let the transition finish before looking, then act
+      // once, and only on something that is actually stopped.
+      await new Promise(resolve => window.setTimeout(resolve, 600));
       const ctx = audioContextRef.current;
       if (ctx && ctx.state !== 'running') {
-        try { await ctx.resume(); } catch (error) { /* handled by the next user action */ }
+        try { await ctx.resume(); } catch (error) { /* the next action retries */ }
       }
       const playback = playbackStateRef.current;
       if (playback.currentPerformance !== null) {

@@ -87,11 +87,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Check the session is still ours, but do not re-activate one that is
-        // already correct - that is what was cutting playback on return. Then
-        // tell the web layer to pick up whatever the trip interrupted.
-        activateAudioSession()
-        resumePlaybackInWebLayer()
+        // Deliberately does not touch audio. Playback survives switching apps,
+        // locking and unlocking while we are in the background - the cases that
+        // broke were the ones where this ran. Coming back to the foreground is
+        // not evidence that anything is wrong, and reclaiming a session or
+        // nudging the web layer here is what stopped the show.
         application.isIdleTimerDisabled = true
     }
 
