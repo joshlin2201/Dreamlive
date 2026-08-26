@@ -5,6 +5,7 @@ import {
   fftMagnitudes,
   hasSpectrogram,
   logBandEdges,
+  playheadNow,
 } from './spectrogram';
 
 const sine = (length, hz, rate = 8000, amplitude = 1) => {
@@ -92,5 +93,27 @@ describe('offline spectrogram', () => {
     const end = bandsAtPosition(spec, { position: 2.6, duration: 3, barCount: 32 });
     const high = bars => bars.slice(-8).reduce((a, b) => a + b, 0);
     expect(high(end)).toBeGreaterThan(high(start));
+  });
+});
+
+describe('playheadNow', () => {
+  test('carries a playing sample forward by real time', () => {
+    const at = playheadNow({ time: 10, duration: 200, playing: true, at: 1000 }, 1500);
+    expect(at.position).toBeCloseTo(10.5, 5);
+  });
+
+  test('a paused sample does not drift', () => {
+    const at = playheadNow({ time: 10, duration: 200, playing: false, at: 1000 }, 9000);
+    expect(at.position).toBe(10);
+  });
+
+  test('never runs past the end of the track', () => {
+    const at = playheadNow({ time: 199.8, duration: 200, playing: true, at: 1000 }, 6000);
+    expect(at.position).toBe(200);
+  });
+
+  test('no sample means no playhead, so the caller can fall back', () => {
+    expect(playheadNow(null, 1000)).toBeNull();
+    expect(playheadNow({ playing: true, at: 0 }, 1000)).toBeNull();
   });
 });

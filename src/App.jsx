@@ -548,6 +548,13 @@ function App() {
   // for that track's audio to be ready, so the intent is held here and an
   // effect below plays it the moment both are true.
   const resumeQueuedBgRef = useRef(false);
+  const bgTrackRef = useRef('');
+  // Where each channel's playhead is, and when that was read. On device the
+  // <audio> elements never play, so their currentTime sits at zero and the
+  // visualizer read the same frame forever. Samples are coarse; the visualizer
+  // extrapolates between them so the bars still move at frame rate.
+  const roomPlayheadRef = useRef(null);
+  const stagePlayheadRef = useRef(null);
   // Playback runs natively on device and through the WebView in a browser. The
   // show logic below only ever talks to channels, so it does not care which.
   const channelsRef = useRef(null);
@@ -1206,6 +1213,12 @@ function App() {
         });
       }
 
+      stagePlayheadRef.current = {
+        time: state.currentTime,
+        duration: state.duration,
+        playing: state.playing,
+        at: performance.now(),
+      };
       if (document.visibilityState !== 'visible') return;
       setPerfProgress(previous => {
         if (!shouldSyncPlaybackProgress({
@@ -1517,6 +1530,38 @@ function App() {
   useEffect(() => {
     bgPlaylistRef.current = bgPlaylist;
   }, [bgPlaylist]);
+
+  // The backstop runs seconds after it was scheduled, by which time a track
+  // queued during the performance has become the room's track. Reading that
+  // off a closure hands it the song that was playing before the queue changed.
+  useEffect(() => {
+    bgTrackRef.current = bgTrack;
+  }, [bgTrack]);
+
+  // The room's playhead, for the BGM visualizer. Only runs while the room is
+  // actually the thing playing, so an idle app polls nothing.
+  useEffect(() => {
+    if (!nativeAudioRef.current) { roomPlayheadRef.current = null; return undefined; }
+    if (!bgPlaying || currentPerformance !== null) { roomPlayheadRef.current = null; return undefined; }
+    let stopped = false;
+    const sample = async () => {
+      const engine = channels();
+      if (!engine || stopped) return;
+      try {
+        const state = await engine.state(ROOM);
+        if (stopped) return;
+        roomPlayheadRef.current = {
+          time: state.currentTime,
+          duration: state.duration,
+          playing: state.playing,
+          at: performance.now(),
+        };
+      } catch (error) { /* the next tick retries */ }
+    };
+    sample();
+    const timer = window.setInterval(sample, 250);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [bgPlaying, currentPerformance, bgTrack]);
 
   // Once anything has been sorted into BGM, the room queue shows that folder and
   // nothing else. Before that it stays as imported, so a library nobody has
@@ -2050,27 +2095,40 @@ function App() {
       if (playback.currentPerformance !== null) return;
       if (bgPlaylistRef.current.length === 0) return;
       const audio = bgAudioRef.current;
-      if (audio && !audio.paused) return;
+      // Ask whatever is actually playing the audio. On device that is the
+      // native channel; the element sits paused forever, so reading it here
+      // fired this last-line-of-defence after every single performance.
+      const engine = channels();
+      if (nativeAudioRef.current) {
+        try {
+          const room = await engine?.state(ROOM);
+          if (room?.playing) return;
+        } catch (error) { /* fall through and restore the room */ }
+      } else if (audio && !audio.paused) {
+        return;
+      }
       resumeQueuedBgRef.current = true;
       setBgPlaying(true);
       setBgIndex(previous => {
         const last = bgPlaylistRef.current.length - 1;
         return Math.min(Math.max(previous, 0), last);
       });
-      if (audio && audio.src) {
-        try { await startBackgroundWithFade(); } catch (error) { /* the effect retries */ }
+      const track = bgTrackRef.current;
+      if (track && (nativeAudioRef.current || (audio && audio.src))) {
+        try { await startBackgroundWithFade(track); } catch (error) { /* the effect retries */ }
       }
     }, (AUDIO_TRANSITION_SECONDS.handoffIn * 1000) + 900);
   };
 
-  const startBackgroundWithFade = async () => {
+  const startBackgroundWithFade = async (trackOverride) => {
     const engine = channels();
-    if (!engine || !bgTrack) return;
+    const track = trackOverride || bgTrack;
+    if (!engine || !track) return;
     if (!nativeAudioRef.current) {
       const ready = await ensureAudioReady();
       if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Play in BGM again.');
     }
-    const staged = await prepareChannel(ROOM, bgTrack, 0.0001);
+    const staged = await prepareChannel(ROOM, track, 0.0001);
     if (!staged) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
     const ok = await engine.play(ROOM, { volume: 0.0001 });
     if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
@@ -2078,7 +2136,7 @@ function App() {
     await engine.setVolume(ROOM, bgVolumeRef.current, {
       fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffIn,
     });
-    updateNowPlaying({ title: trackName(bgTrack), playing: true });
+    updateNowPlaying({ title: trackName(track), playing: true });
     setIsFading(false);
   };
 
@@ -2779,6 +2837,7 @@ function App() {
                       analyserRef={analyserNodeRef}
                       peaksRef={bgPeaksRef}
                       sourceRef={bgAudioRef}
+                      playheadRef={roomPlayheadRef}
                       active={bgPlaying && currentPerformance === null}
                       variant="compact"
                       status="BGM"
@@ -2973,6 +3032,7 @@ function App() {
                         analyserRef={analyserNodeRef}
                         peaksRef={perfPeaksRef}
                         sourceRef={{ current: perfAudioRefs.current[focusPerformanceIndex] }}
+                        playheadRef={stagePlayheadRef}
                         active={perfPlaying[focusPerformanceIndex] || isFading}
                         variant="focus"
                         status={isFading

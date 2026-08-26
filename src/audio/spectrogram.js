@@ -179,3 +179,15 @@ export function bandsAtPosition(spectrogram, { position = 0, duration = 0, barCo
 export function hasSpectrogram(spectrogram) {
   return Boolean(spectrogram && spectrogram.frames > 0 && spectrogram.bands > 0);
 }
+
+// Where the playhead is right now, given a sample taken a moment ago. Native
+// playback is sampled a few times a second, which is far coarser than the
+// frame rate the bars draw at, so a paused-looking step appears unless the
+// sample is carried forward by the time since it was read.
+export function playheadNow(sample, now = 0) {
+  if (!sample || !Number.isFinite(sample.time)) return null;
+  const elapsed = sample.playing ? Math.max(0, (now - sample.at) / 1000) : 0;
+  const duration = Number.isFinite(sample.duration) ? sample.duration : 0;
+  const position = sample.time + elapsed;
+  return { position: duration > 0 ? Math.min(position, duration) : position, duration };
+}

@@ -4,17 +4,20 @@ import {
   decaySpectrum,
   smoothSpectrum,
 } from '../audio/spectrum';
-import { bandsAtPosition, hasSpectrogram } from '../audio/spectrogram';
+import { bandsAtPosition, hasSpectrogram, playheadNow } from '../audio/spectrogram';
 
 const BAR_COUNT = 72;
 
-// `sourceRef` is the element being played. With playback routed straight
-// through it there is no AnalyserNode, so the bars read the track's decoded
-// peaks against the playhead instead of a live spectrum.
+// The bars read the track's decoded spectrum at whatever moment is playing, so
+// they need a playhead. `playheadRef` carries one sampled from wherever
+// playback actually lives - on device that is the native channel, because the
+// <audio> element never plays and its currentTime sits at zero forever.
+// `sourceRef` is that element, still the playhead in a browser.
 function AudioVisualizer({
   analyserRef,
   peaksRef,
   sourceRef,
+  playheadRef,
   active = false,
   variant = 'compact',
   status = 'Paused',
@@ -110,12 +113,20 @@ function AudioVisualizer({
         const analyser = analyserRef?.current;
         const spectrogram = peaksRef?.current;
         const media = sourceRef?.current;
-        const offline = Boolean(active && !analyser && hasSpectrogram(spectrogram) && media);
-        const live = Boolean(active && analyser);
+        // A sampled playhead arrives a few times a second. Carrying it forward
+        // by the time since it was read keeps the bars moving at frame rate
+        // instead of stepping four times a second.
+        const sampled = playheadRef?.current;
+        const playhead = playheadNow(sampled, timestamp)
+          || (media ? { position: media.currentTime, duration: media.duration } : null);
+        // A sampled playhead means playback is not going through the graph, so
+        // the analyser would only ever report silence.
+        const offline = Boolean(active && (sampled || !analyser) && hasSpectrogram(spectrogram) && playhead);
+        const live = Boolean(active && analyser && !sampled);
         if (offline) {
           const bars = bandsAtPosition(spectrogram, {
-            position: media.currentTime,
-            duration: media.duration,
+            position: playhead.position,
+            duration: playhead.duration,
             barCount: BAR_COUNT,
           });
           for (let index = 0; index < bars.length; index += 1) {
@@ -189,7 +200,7 @@ function AudioVisualizer({
       observer?.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [active, analyserRef, peaksRef, sourceRef, variant]);
+  }, [active, analyserRef, peaksRef, sourceRef, playheadRef, variant]);
 
   return (
     <div className={`audio-visualizer ${variant} ${active ? 'is-active' : ''}`} role="img" aria-label={status}>
