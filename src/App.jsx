@@ -481,6 +481,14 @@ const DEFAULT_PERFORMANCE_COUNT = 4;
 const performanceArray = (value, count = DEFAULT_PERFORMANCE_COUNT) => Array.from({ length: count }, () => value);
 const displayTrackName = (name) => name.replace(/\.(mp3|m4a|aac|wav|ogg|flac)$/i, '');
 
+// WKWebView suspends an AudioContext the moment the app leaves the foreground,
+// so anything routed through the Web Audio graph goes silent on the lock screen
+// however the audio session is configured. Playing straight from the <audio>
+// element keeps the show running; the fade paths already have an element-volume
+// implementation for exactly this case. Set to false to get the live analyser
+// back at the cost of background playback.
+const ROUTE_AUDIO_THROUGH_WEB_AUDIO = false;
+
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
@@ -632,6 +640,10 @@ function App() {
   // "interrupted" state — a plain `state === 'suspended'`
   // check misses it and tracks then "play" silently into a dead context.
   const ensureAudioReady = async () => {
+    // Element playback needs no context, and gating every play path on a
+    // context that iOS may have parked in "interrupted" is how an old iPad ends
+    // up refusing to start anything after a few background trips.
+    if (!ROUTE_AUDIO_THROUGH_WEB_AUDIO) return true;
     if (!audioContextRef.current) {
       initWebAudio();
     }
@@ -659,10 +671,30 @@ function App() {
     try {
       await audio.play();
       return true;
-    } catch (e) {
-      console.warn(`Playback failed (${label}):`, e);
-      showNotice(`Couldn't start ${label}. Tap play again.`, 'error');
-      return false;
+    } catch (firstError) {
+      // An older iPad releases a media element's decoder after enough
+      // background trips; the element still exists and still has a src, but the
+      // first play() rejects. Re-attaching the source recovers it, and a second
+      // failure is a real one worth telling the operator about.
+      console.warn(`Playback failed (${label}), reloading the source:`, firstError);
+      try {
+        const resumeAt = audio.currentTime;
+        audio.load();
+        if (Number.isFinite(resumeAt) && resumeAt > 0) {
+          await new Promise(resolve => {
+            const settle = () => { audio.removeEventListener('loadedmetadata', settle); resolve(); };
+            audio.addEventListener('loadedmetadata', settle);
+            window.setTimeout(settle, 600);
+          });
+          try { audio.currentTime = resumeAt; } catch (seekError) { /* start from zero */ }
+        }
+        await audio.play();
+        return true;
+      } catch (secondError) {
+        console.warn(`Playback failed again (${label}):`, secondError);
+        showNotice(`Couldn't start ${label}. Tap play again.`, 'error');
+        return false;
+      }
     }
   };
 
@@ -812,6 +844,12 @@ function App() {
   // Initialize Web Audio on first interaction
   const initWebAudio = () => {
     if (audioContextRef.current) return;
+    // With playback routed straight through the <audio> elements, an
+    // AudioContext is dead weight that still owns the iOS audio session. Waking
+    // it on foreground return re-arms that session and interrupts the element
+    // that is happily playing, which is exactly the "pauses when I come back"
+    // report. No graph, no context.
+    if (!ROUTE_AUDIO_THROUGH_WEB_AUDIO) return;
 
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -851,7 +889,7 @@ function App() {
 
       audioContextRef.current = ctx;
 
-      if (bgAudioRef.current) {
+      if (ROUTE_AUDIO_THROUGH_WEB_AUDIO && bgAudioRef.current) {
         try {
           const source = ctx.createMediaElementSource(bgAudioRef.current);
           source.connect(bgGain);
@@ -863,7 +901,7 @@ function App() {
 
       // Connect pending perf refs
       perfAudioRefs.current.forEach((audio, i) => {
-        if (audio && !perfSourceNodeRefs.current[i]) {
+        if (ROUTE_AUDIO_THROUGH_WEB_AUDIO && audio && !perfSourceNodeRefs.current[i]) {
           try {
             const source = ctx.createMediaElementSource(audio);
             source.connect(ensurePerformanceGain(i));
@@ -976,6 +1014,15 @@ function App() {
       if (playback.currentPerformance !== null) {
         const index = playback.currentPerformance;
         const audio = perfAudioRefs.current[index];
+        // Coming back from the background, the rendered playhead is as stale as
+        // the time the app spent away. Snap it to the element before anything
+        // else reads it.
+        if (audio && Number.isFinite(audio.currentTime)) {
+          const elapsed = audio.currentTime;
+          setPerfProgress(previous => previous.map((value, trackIndex) => (
+            trackIndex === index ? elapsed : value
+          )));
+        }
         if (playback.perfPlaying[index] && audio?.paused) {
           setPerfPlaying(previous => previous.map((playing, trackIndex) => (
             trackIndex === index ? false : playing
@@ -1060,6 +1107,7 @@ function App() {
           }
         }
       }
+      if (document.visibilityState !== 'visible') return;
       setPerfProgress(prev => {
         let changed = false;
         const next = prev.map((value, index) => {
@@ -1516,7 +1564,7 @@ function App() {
       return false;
     }
 
-    if (audioContextRef.current && !bgSourceNodeRef.current) {
+    if (ROUTE_AUDIO_THROUGH_WEB_AUDIO && audioContextRef.current && !bgSourceNodeRef.current) {
       try {
         const source = audioContextRef.current.createMediaElementSource(audio);
         source.connect(bgGainNodeRef.current);
@@ -1789,7 +1837,7 @@ function App() {
     const audio = perfAudioRefs.current[index];
     if (!audio) throw new Error(`Performance ${index + 1} is not available.`);
 
-    if (audioContextRef.current && !perfSourceNodeRefs.current[index]) {
+    if (ROUTE_AUDIO_THROUGH_WEB_AUDIO && audioContextRef.current && !perfSourceNodeRefs.current[index]) {
       try {
         const source = audioContextRef.current.createMediaElementSource(audio);
         source.connect(ensurePerformanceGain(index));
