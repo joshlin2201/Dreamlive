@@ -9028,3 +9028,33 @@ input:focus-visible {
 .show-workspace.run-deck .bgm-queue::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* The scroller reaches the panel edge. It was sitting inside the queue's own
+   right padding AND the section's, so the rail floated with a gap on both
+   sides of it; the rows keep the inset instead, which is where it belongs. */
+.show-workspace.run-deck .background-section .bgm-queue {
+  margin-right: -7px;
+  margin-left: -9px;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.show-workspace.run-deck .background-section .bgm-queue .bgm-queue-heading {
+  padding-left: 9px;
+  padding-right: 11px;
+}
+
+.show-workspace.run-deck .background-section .bgm-queue .queue-layout-row {
+  padding-right: 4px;
+  padding-left: 9px;
+}
+
+.show-workspace.run-deck .background-section .bgm-queue .queue-row {
+  padding-right: 0;
+  padding-left: 0;
+  gap: 4px;
+}
+
+.show-workspace.run-deck .background-section .bgm-queue .queue-row-actions {
+  gap: 0;
+}
