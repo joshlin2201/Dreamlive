@@ -1100,12 +1100,22 @@ function App() {
       const playback = playbackStateRef.current;
       if (playback.currentPerformance === null) return;
       const index = playback.currentPerformance;
-      const audio = perfAudioRefs.current[index];
-      if (!audio || !Number.isFinite(audio.currentTime)) return;
-      const elapsed = audio.currentTime;
-      setPerfProgress(previous => previous.map((value, trackIndex) => (
-        trackIndex === index ? elapsed : value
-      )));
+      const applyElapsed = (elapsed) => {
+        if (!Number.isFinite(elapsed)) return;
+        setPerfProgress(previous => previous.map((value, trackIndex) => (
+          trackIndex === index ? elapsed : value
+        )));
+      };
+      // The playhead lives wherever playback does. On device that is the
+      // native channel; the element sits at zero and would rewind the bar.
+      if (nativeAudioRef.current) {
+        const engine = channels();
+        engine?.state(STAGE)
+          .then(state => applyElapsed(state.currentTime))
+          .catch(() => { /* the next tick refreshes it */ });
+        return;
+      }
+      applyElapsed(perfAudioRefs.current[index]?.currentTime);
     };
 
     // Native side reactivated the audio session after a call, Siri, or a media
@@ -1116,6 +1126,23 @@ function App() {
       // services resetting. Let the transition finish before looking, then act
       // once, and only on something that is actually stopped.
       await new Promise(resolve => window.setTimeout(resolve, 600));
+      // Native playback owns the session and comes back on its own. Touching
+      // the elements here would start a second, unsynced copy of the same
+      // track over the top of the one already playing.
+      if (nativeAudioRef.current) {
+        const engine = channels();
+        if (!engine) return;
+        const playback = playbackStateRef.current;
+        const live = playback.currentPerformance;
+        const channel = live !== null ? STAGE : ROOM;
+        const wanted = live !== null ? Boolean(playback.perfPlaying[live]) : Boolean(playback.bgPlaying);
+        if (!wanted) return;
+        try {
+          const state = await engine.state(channel);
+          if (state.loaded && !state.playing) await engine.play(channel, { from: state.currentTime });
+        } catch (error) { /* the operator will see it stopped */ }
+        return;
+      }
       const ctx = audioContextRef.current;
       if (ctx && ctx.state !== 'running') {
         try { await ctx.resume(); } catch (error) { /* the next action retries */ }
@@ -2782,7 +2809,10 @@ function App() {
                 <audio
                   ref={bgAudioRef}
                   src={bgTrackSource || undefined}
-                  preload="auto"
+                  // On device the native channel holds the audio, so buffering
+                  // the whole track here again is a second copy in memory an
+                  // older iPad cannot spare. Metadata still gives the length.
+                  preload={isNativeAudio() ? 'metadata' : 'auto'}
                   onEnded={advanceBackground}
                   onError={() => {
                     if (!bgTrack) return;
