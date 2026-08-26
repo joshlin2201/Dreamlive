@@ -507,6 +507,13 @@ function App() {
   const bgVolumeRef = useRef(0.5);
   const [pendingBgTrack, setPendingBgTrack] = useState('');
   const pendingBgTrackRef = useRef('');
+  // Queuing a track for after a performance only changes which track is next.
+  // Actually starting it has to wait for the lineup to hand the room back and
+  // for that track's audio to be ready, so the intent is held here and an
+  // effect below plays it the moment both are true.
+  const resumeQueuedBgRef = useRef(false);
+  const roomBackstopTimeoutRef = useRef(null);
+  const bgPlaylistRef = useRef([]);
   const [bgQueueExpanded, setBgQueueExpanded] = useState(true);
   const [isPortraitLayout, setIsPortraitLayout] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
@@ -1419,6 +1426,10 @@ function App() {
   }, [audioFiles]);
 
   useEffect(() => {
+    bgPlaylistRef.current = bgPlaylist;
+  }, [bgPlaylist]);
+
+  useEffect(() => {
     const generation = sourceLoadGenerationRef.current + 1;
     sourceLoadGenerationRef.current = generation;
     const needed = new Set([bgTrack, ...perfTracks].filter(isManagedAudioRef));
@@ -1457,6 +1468,7 @@ function App() {
     if (noticeTimeoutRef.current) window.clearTimeout(noticeTimeoutRef.current);
     if (fadeTimeoutRef.current) window.clearTimeout(fadeTimeoutRef.current);
     if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+    if (roomBackstopTimeoutRef.current) window.clearTimeout(roomBackstopTimeoutRef.current);
     if (seekTimeoutRefs.current.bg) window.clearTimeout(seekTimeoutRefs.current.bg);
     seekTimeoutRefs.current.perf.forEach(timer => timer && window.clearTimeout(timer));
     performanceSeekReleaseRefs.current.forEach(timer => timer && window.clearTimeout(timer));
@@ -1671,6 +1683,7 @@ function App() {
       setBgIndex(promoted.currentIndex);
     }
     pendingBgTrackRef.current = track;
+    resumeQueuedBgRef.current = false;
     setPendingBgTrack(track);
     setLoopCurrentTrack(false);
     showNotice(`${trackName(track)} will play after this performance.`);
@@ -1678,11 +1691,17 @@ function App() {
 
   useEffect(() => {
     if (!bgPlaying || currentPerformance !== null || !bgTrack || !bgTrackSource) return;
-    if (bgAudioRef.current) {
-      bgAudioRef.current.load();
-      playBackgroundAudio();
+    if (!bgAudioRef.current) return;
+    bgAudioRef.current.load();
+    // A track queued during a performance owes the room the same fade back in
+    // as any other return; a plain play() would drop it in at full level.
+    if (resumeQueuedBgRef.current) {
+      resumeQueuedBgRef.current = false;
+      startBackgroundWithFade().catch(() => setIsFading(false));
+      return;
     }
-  }, [bgTrack, bgTrackSource]);
+    playBackgroundAudio();
+  }, [bgTrack, bgTrackSource, currentPerformance, bgPlaying]);
 
   const previewBgVolume = value => {
     const newVolume = Number.parseFloat(value);
@@ -1783,22 +1802,33 @@ function App() {
     setIsFading(false);
   };
 
-  const fadeInBackground = async () => {
-    if (!bgAudioRef.current || !bgTrack) return;
-    setIsFading(true);
-    clearBackgroundTail();
-    const pendingIndex = bgPlaylist.indexOf(pendingBgTrackRef.current);
-    if (pendingIndex >= 0 && pendingIndex !== bgIndex) {
-      pendingBgTrackRef.current = '';
-      setPendingBgTrack('');
+  // Last line of defence for "the room went quiet after a performance". Every
+  // return path above is expected to work; this one only fires when none of
+  // them did, and it starts the queue's current track rather than nothing.
+  const scheduleRoomAudioBackstop = () => {
+    if (roomBackstopTimeoutRef.current) window.clearTimeout(roomBackstopTimeoutRef.current);
+    roomBackstopTimeoutRef.current = window.setTimeout(async () => {
+      roomBackstopTimeoutRef.current = null;
+      const playback = playbackStateRef.current;
+      if (playback.currentPerformance !== null) return;
+      if (bgPlaylistRef.current.length === 0) return;
+      const audio = bgAudioRef.current;
+      if (audio && !audio.paused) return;
+      resumeQueuedBgRef.current = true;
       setBgPlaying(true);
-      setBgIndex(pendingIndex);
-      setIsFading(false);
-      return;
-    }
-    pendingBgTrackRef.current = '';
-    setPendingBgTrack('');
+      setBgIndex(previous => {
+        const last = bgPlaylistRef.current.length - 1;
+        return Math.min(Math.max(previous, 0), last);
+      });
+      if (audio && audio.src) {
+        try { await startBackgroundWithFade(); } catch (error) { /* the effect retries */ }
+      }
+    }, (AUDIO_TRANSITION_SECONDS.handoffIn * 1000) + 900);
+  };
+
+  const startBackgroundWithFade = async () => {
     const audio = bgAudioRef.current;
+    if (!audio) return;
     const ready = await ensureAudioReady();
     if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Play in BGM again.');
 
@@ -1820,6 +1850,34 @@ function App() {
       await fadeElementVolume(audio, bgVolumeRef.current, AUDIO_TRANSITION_SECONDS.handoffIn);
     }
     setIsFading(false);
+  };
+
+  const fadeInBackground = async () => {
+    if (!bgAudioRef.current) return;
+    // The room never drops to silence between performances. If no BGM track is
+    // selected but the queue has one, take the queue's current track.
+    if (!bgTrack && bgPlaylist.length > 0) {
+      resumeQueuedBgRef.current = true;
+      setBgPlaying(true);
+      setBgIndex(Math.min(Math.max(bgIndex, 0), bgPlaylist.length - 1));
+      return;
+    }
+    if (!bgTrack) return;
+    setIsFading(true);
+    clearBackgroundTail();
+    const pendingIndex = bgPlaylist.indexOf(pendingBgTrackRef.current);
+    pendingBgTrackRef.current = '';
+    setPendingBgTrack('');
+    if (pendingIndex >= 0 && pendingIndex !== bgIndex) {
+      // The queued track is a different file, so it has to load before it can
+      // be faded up. Record the intent and let the effect below finish the job
+      // once the source is attached and the stage is clear.
+      resumeQueuedBgRef.current = true;
+      setBgPlaying(true);
+      setBgIndex(pendingIndex);
+      return;
+    }
+    await startBackgroundWithFade();
   };
 
   // The room comes back UNDER the outgoing tail, not after it. Both endings -
@@ -1874,6 +1932,10 @@ function App() {
     if (!trackSource(perfTracks[index]) || currentPerformance !== null || isFading || transitionLockRef.current) return;
     transitionLockRef.current = true;
     setShowError('');
+    if (roomBackstopTimeoutRef.current) {
+      window.clearTimeout(roomBackstopTimeoutRef.current);
+      roomBackstopTimeoutRef.current = null;
+    }
     endFadeStartedRef.current[index] = false;
     bgReturnStartedRef.current = false;
     setCurrentPerformance(index);
@@ -1968,6 +2030,7 @@ function App() {
 
     setCurrentPerformance(null);
     setSelectedPerformanceIndex(null);
+    scheduleRoomAudioBackstop();
     try {
       await finishPerformanceFlow({
         restoreBackground: returnBackground,
