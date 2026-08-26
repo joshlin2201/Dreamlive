@@ -8907,3 +8907,124 @@ input:focus-visible {
 }
 
 .select-dropdown { touch-action: pan-y; }
+
+/* Select all sits with the count, quiet until it is needed. */
+.select-confirm-bar {
+  gap: 10px;
+}
+
+.select-confirm-bar .select-all-button {
+  margin-right: auto;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid rgba(213, 44, 120, 0.14);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--pink-strong);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.select-confirm-bar .select-all-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(213, 44, 120, 0.24);
+}
+
+.select-confirm-bar .select-all-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Select all for whatever folder and search are showing. */
+.library-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 8px;
+}
+
+.library-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 10px 0 6px;
+  border: 1px solid rgba(213, 44, 120, 0.12);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.library-select-all:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(213, 44, 120, 0.22);
+}
+
+.library-select-count {
+  margin-left: auto;
+  color: var(--pink-strong);
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+/* ── Room queue geometry ──────────────────────────────────────────────────
+   The scroller sits against the panel edge instead of floating inside a gutter,
+   the side padding stops eating the column, and the title gets the width that
+   padding was using - on a 4:3 iPad that is the difference between reading a
+   track and guessing at it. */
+.show-workspace.run-deck .bgm-queue {
+  padding-inline: 0;
+  scrollbar-gutter: auto;
+}
+
+.show-workspace.run-deck .bgm-queue-heading {
+  padding-inline: 10px;
+}
+
+.show-workspace.run-deck .queue-row {
+  padding-inline: 10px 4px;
+  gap: 6px;
+}
+
+.show-workspace.run-deck .queue-track-copy {
+  min-width: 0;
+  padding-right: 2px;
+}
+
+.show-workspace.run-deck .queue-track-copy strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.show-workspace.run-deck .queue-row-actions {
+  gap: 0;
+  margin-left: 0;
+}
+
+.show-workspace.run-deck .queue-row-actions button {
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+}
+
+/* A thin rail that hugs the edge, rather than an overlay bar sitting in from it. */
+.show-workspace.run-deck .bgm-queue::-webkit-scrollbar {
+  width: 4px;
+}
+
+.show-workspace.run-deck .bgm-queue::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: rgba(184, 23, 97, 0.22);
+}
+
+.show-workspace.run-deck .bgm-queue::-webkit-scrollbar-track {
+  background: transparent;
+}

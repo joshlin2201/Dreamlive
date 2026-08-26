@@ -8,7 +8,6 @@ import {
   MoreVertical,
   Pause,
   Play,
-  Plus,
   RotateCcw,
   Search,
   Square,
@@ -68,7 +67,11 @@ import {
   foldersWithCounts,
   normalizeFolderState,
   renameFolder,
+  trackFolder,
 } from './audio/folders';
+
+// The room queue is the BGM folder. Named once so the two never drift apart.
+const BGM_FOLDER = 'BGM';
 import BgmQueue from './components/BgmQueue';
 import './App.css';
 
@@ -385,6 +388,24 @@ function SearchableSelect({
               </div>
               {multiple && (
                 <div className="select-confirm-bar">
+                  <button
+                    type="button"
+                    className="select-all-button"
+                    disabled={filteredOptions.length === 0}
+                    onClick={() => {
+                      // Select all means everything currently on screen: the
+                      // folder chip and the search box already decided that.
+                      const shown = filteredOptions.map(option => option.value);
+                      const allShown = shown.length > 0 && shown.every(value => picked.includes(value));
+                      setPicked(previous => (allShown
+                        ? previous.filter(value => !shown.includes(value))
+                        : [...previous, ...shown.filter(value => !previous.includes(value))]));
+                    }}
+                  >
+                    {filteredOptions.length > 0 && filteredOptions.every(option => picked.includes(option.value))
+                      ? 'Clear all'
+                      : `Select all ${filteredOptions.length}`}
+                  </button>
                   <span>{picked.length} selected</span>
                   <button
                     type="button"
@@ -633,11 +654,36 @@ function App() {
     [folderState, audioFiles],
   );
 
+  useEffect(() => {
+    // Same rule in the picker: a chip that no longer exists cannot stay open.
+    if (performanceFolderChips.some(entry => entry.name === performanceFolder)) return;
+    setPerformanceFolder(ALL_FOLDERS);
+  }, [performanceFolderChips, performanceFolder]);
+
+  // Sorting a track into BGM is how it gets into the room queue, and taking it
+  // out of BGM takes it back out. The autoplay list and the BGM folder are the
+  // same thing seen twice; they must not disagree.
   const moveTracksToFolder = (paths, folder) => {
     const targets = new Set(paths);
     setFolderState(previous => audioFiles
       .filter(file => targets.has(file.path))
       .reduce((state, file) => assignFolder(state, file, folder), previous));
+
+    if (folder === BGM_FOLDER) {
+      setBgPlaylist(previous => [
+        ...previous,
+        ...paths.filter(path => path && !previous.includes(path)),
+      ]);
+      return;
+    }
+    setBgPlaylist(previous => {
+      const next = previous.filter(path => !targets.has(path));
+      if (next.length === previous.length) return previous;
+      const holding = previous[bgIndex];
+      const stillThere = next.indexOf(holding);
+      setBgIndex(stillThere >= 0 ? stillThere : 0);
+      return next;
+    });
   };
 
   const requestLibraryRemoval = (paths) => {
@@ -1437,6 +1483,28 @@ function App() {
     bgPlaylistRef.current = bgPlaylist;
   }, [bgPlaylist]);
 
+  // Once anything has been sorted into BGM, the room queue shows that folder and
+  // nothing else. Before that it stays as imported, so a library nobody has
+  // sorted yet still plays.
+  useEffect(() => {
+    const inFolder = new Set(audioFiles
+      .filter(file => trackFolder(folderState, file) === BGM_FOLDER)
+      .map(file => file.path));
+    if (inFolder.size === 0) return;
+    setBgPlaylist(previous => {
+      const next = previous.filter(path => inFolder.has(path));
+      const additions = [...inFolder].filter(path => !next.includes(path));
+      const merged = [...next, ...additions];
+      if (merged.length === previous.length && merged.every((path, at) => path === previous[at])) {
+        return previous;
+      }
+      const holding = previous[bgIndex];
+      const stillThere = merged.indexOf(holding);
+      setBgIndex(stillThere >= 0 ? stillThere : 0);
+      return merged;
+    });
+  }, [audioFiles, folderState]);
+
   useEffect(() => {
     const generation = sourceLoadGenerationRef.current + 1;
     sourceLoadGenerationRef.current = generation;
@@ -2204,28 +2272,38 @@ function App() {
     showNotice('Performances cleared. BGM queue and imported tracks were kept.');
   };
 
-  const addPerformance = () => {
-    const newIndex = perfTracks.length;
-    setPerfTracks(previous => [...previous, '']);
-    setPerfPlaying(previous => [...previous, false]);
-    perfVolumesRef.current.push(0.8);
-    setPerfVolumes(previous => [...previous, 0.8]);
-    setPerfProgress(previous => [...previous, 0]);
-    setPerfDurations(previous => [...previous, 0]);
-    setPerformanceStatus(previous => [...previous, false]);
-    setPerformanceOrder(previous => [...previous, previous.length]);
-    perfAudioRefs.current.push(null);
-    perfGainNodeRefs.current.push(null);
-    perfSourceNodeRefs.current.push(null);
-    seekTimeoutRefs.current.perf.push(null);
-    performanceSeekingRef.current.push(false);
-    performanceSeekReleaseRefs.current.push(null);
-    setDraftPerformanceIndex(newIndex);
-    showNotice('Performance added.');
+  // A slot with no track assigned is scaffolding, not part of the show. It can
+  // always be taken back out, and taking it out has to renumber everything that
+  // travels alongside it or the lineup drifts out of sync with its audio.
+  const removePerformanceSlot = (index) => {
+    if (perfTracks.length <= 1) return;
+    if (currentPerformance === index || isFading) return;
+    const drop = (previous) => previous.filter((_, position) => position !== index);
+    const shift = (value) => (value === null || value < index ? value : (value === index ? null : value - 1));
+
+    setPerfTracks(drop);
+    setPerfPlaying(drop);
+    setPerfVolumes(drop);
+    setPerfProgress(drop);
+    setPerfDurations(drop);
+    setPerformanceStatus(drop);
+    setPerformanceOrder(previous => previous
+      .filter(order => order !== index)
+      .map(order => (order > index ? order - 1 : order)));
+
+    perfVolumesRef.current.splice(index, 1);
+    perfAudioRefs.current.splice(index, 1);
+    perfGainNodeRefs.current.splice(index, 1);
+    perfSourceNodeRefs.current.splice(index, 1);
+    seekTimeoutRefs.current.perf.splice(index, 1);
+    performanceSeekingRef.current.splice(index, 1);
+    performanceSeekReleaseRefs.current.splice(index, 1);
+
+    setCurrentPerformance(previous => shift(previous));
+    setSelectedPerformanceIndex(previous => shift(previous));
+    setDraftPerformanceIndex(previous => shift(previous));
   };
 
-  // Adding a set is one action: every chosen track becomes its own slot, in
-  // the order they were picked.
   const addPerformances = (paths) => {
     const tracks = paths.filter(Boolean);
     if (tracks.length === 0) return;
@@ -2969,9 +3047,22 @@ function App() {
                     )}
                   </div>
 
-                  <span className="perf-duration" aria-hidden={!perfTracks[index]}>
-                    {perfTracks[index] ? formatTime(perfDurations[index]) : ''}
-                  </span>
+                  {!perfTracks[index] && perfTracks.length > 1 && currentPerformance !== index ? (
+                    <button
+                      type="button"
+                      className="perf-slot-remove"
+                      onClick={() => removePerformanceSlot(index)}
+                      disabled={isFading}
+                      aria-label={`Remove empty performance ${position + 1}`}
+                      title="Remove this empty slot"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : (
+                    <span className="perf-duration" aria-hidden={!perfTracks[index]}>
+                      {perfTracks[index] ? formatTime(perfDurations[index]) : ''}
+                    </span>
+                  )}
 
                   <audio
                     ref={el => perfAudioRefs.current[index] = el}
@@ -3002,10 +3093,6 @@ function App() {
                   confirmLabel="Add to lineup"
                   onConfirmMultiple={addPerformances}
                 />
-                <button type="button" className="add-performance-button" onClick={addPerformance}>
-                  <Plus size={13} />
-                  <span>Empty slot</span>
-                </button>
               </div>
             </div>
             </section>

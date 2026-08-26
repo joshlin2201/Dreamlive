@@ -80,6 +80,19 @@ describe('library folders', () => {
     expect(tallied).toBe(files.length);
   });
 
+  test('Unsorted leads while it has tracks, All closes the row, and Unsorted goes away when empty', () => {
+    let state = assignFolder(normalizeFolderState(), files[0], 'BGM');
+    const withPile = foldersWithCounts(state, files).map(entry => entry.name);
+    expect(withPile[0]).toBe(UNSORTED);
+    expect(withPile[withPile.length - 1]).toBe(ALL_FOLDERS);
+
+    state = assignFolder(state, files[1], 'BGM');
+    state = assignFolder(state, files[2], 'Performance');
+    const sorted = foldersWithCounts(state, files).map(entry => entry.name);
+    expect(sorted).not.toContain(UNSORTED);
+    expect(sorted[sorted.length - 1]).toBe(ALL_FOLDERS);
+  });
+
   test('filtering by folder returns only that folder, and All returns everything', () => {
     const state = assignFolder(normalizeFolderState(), files[2], 'BGM');
     expect(filesInFolder(files, state, 'BGM').map(f => f.id)).toEqual(['c']);

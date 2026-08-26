@@ -36,6 +36,13 @@ function AudioLibraryPanel({
   const panelRef = useRef(null);
 
   const folders = useMemo(() => foldersWithCounts(folderState, files), [folderState, files]);
+
+  // Unsorted disappears once the pile is cleared. If that was the open tab, fall
+  // back to All rather than showing an empty list under a chip that is gone.
+  useEffect(() => {
+    if (folders.some(entry => entry.name === folder)) return;
+    setFolder(ALL_FOLDERS);
+  }, [folders, folder]);
   const scoped = useMemo(() => filesInFolder(files, folderState, folder), [files, folderState, folder]);
   const { total, results } = useMemo(() => filterAudioLibrary(scoped, query), [scoped, query]);
   const moveTargets = useMemo(
@@ -174,6 +181,31 @@ function AudioLibraryPanel({
           </>
         )}
       </div>
+
+      {results.length > 0 && (
+        <div className="library-select-bar">
+          <button
+            type="button"
+            className="library-select-all"
+            onClick={() => {
+              // Whatever the folder chip and the search box are showing is what
+              // "all" means here - never the tracks you cannot see.
+              const shown = results.map(file => file.path);
+              setSelected(previous => {
+                const next = new Set(previous);
+                if (allShownSelected) shown.forEach(path => next.delete(path));
+                else shown.forEach(path => next.add(path));
+                return next;
+              });
+            }}
+          >
+            <span className="library-checkbox" aria-hidden="true">{allShownSelected && <Check size={12} />}</span>
+            {allShownSelected ? 'Clear selection' : `Select all ${results.length}`}
+            {folder !== ALL_FOLDERS && !allShownSelected ? ` in ${folder}` : ''}
+          </button>
+          {selectionCount > 0 && <span className="library-select-count">{selectionCount} selected</span>}
+        </div>
+      )}
 
       {results.length > 0 ? (
         <div ref={listRef} className="library-results" role="listbox" aria-multiselectable="true" aria-label="Tracks">

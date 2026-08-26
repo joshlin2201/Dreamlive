@@ -105,9 +105,12 @@ export function foldersWithCounts(state, files = []) {
     if (counts.has(folder)) counts.set(folder, counts.get(folder) + 1);
     else unsorted += 1;
   }
+  // Unsorted leads, because it is the pile that still needs a decision, and it
+  // disappears once there is nothing left in it. All closes the row as the
+  // fallback view rather than the default one.
   return [
-    { name: ALL_FOLDERS, count: files.length, fixed: true },
+    ...(unsorted > 0 ? [{ name: UNSORTED, count: unsorted, fixed: true }] : []),
     ...normalized.folders.map(folder => ({ name: folder, count: counts.get(folder) || 0, fixed: false })),
-    { name: UNSORTED, count: unsorted, fixed: true },
+    { name: ALL_FOLDERS, count: files.length, fixed: true },
   ];
 }
