@@ -506,13 +506,14 @@ const DEFAULT_PERFORMANCE_COUNT = 4;
 const performanceArray = (value, count = DEFAULT_PERFORMANCE_COUNT) => Array.from({ length: count }, () => value);
 const displayTrackName = (name) => name.replace(/\.(mp3|m4a|aac|wav|ogg|flac)$/i, '');
 
-// WKWebView suspends an AudioContext the moment the app leaves the foreground,
-// so anything routed through the Web Audio graph goes silent on the lock screen
-// however the audio session is configured. Playing straight from the <audio>
-// element keeps the show running; the fade paths already have an element-volume
-// implementation for exactly this case. Set to false to get the live analyser
-// back at the cost of background playback.
-const ROUTE_AUDIO_THROUGH_WEB_AUDIO = false;
+// iOS ignores writes to HTMLMediaElement.volume - it is a read-only property
+// on the platform, which is why the volume sliders were ignored before this app
+// routed through gain nodes. So the element-volume fade path is a no-op on
+// device: every fade becomes an instant cut. A gain node is the only way to
+// change level on iOS, which makes the Web Audio graph mandatory, not optional.
+// Turning this off to chase background playback traded working transitions for
+// a background problem that lives in the audio session, not in the graph.
+const ROUTE_AUDIO_THROUGH_WEB_AUDIO = true;
 
 
 function App() {
@@ -1089,11 +1090,17 @@ function App() {
           )));
         }
         if (playback.perfPlaying[index] && audio?.paused) {
-          setPerfPlaying(previous => previous.map((playing, trackIndex) => (
-            trackIndex === index ? false : playing
-          )));
-          setShowPhase(SHOW_PHASE.PAUSED);
-          showNotice(`Performance ${index + 1} paused after an audio interruption.`);
+          // The show was running when we left. A paused element here means iOS
+          // interrupted it, not that the operator pressed anything - so put it
+          // back before reporting a pause nobody asked for.
+          const resumed = await audio.play().then(() => true).catch(() => false);
+          if (!resumed) {
+            setPerfPlaying(previous => previous.map((playing, trackIndex) => (
+              trackIndex === index ? false : playing
+            )));
+            setShowPhase(SHOW_PHASE.PAUSED);
+            showNotice(`Performance ${index + 1} paused after an audio interruption.`);
+          }
         }
       } else if (playback.bgPlaying && bgAudioRef.current?.paused) {
         try {
@@ -1114,7 +1121,15 @@ function App() {
         try { await ctx.resume(); } catch (error) { /* handled by the next user action */ }
       }
       const playback = playbackStateRef.current;
-      if (playback.currentPerformance === null && playback.bgPlaying && bgAudioRef.current?.paused) {
+      if (playback.currentPerformance !== null) {
+        const index = playback.currentPerformance;
+        const audio = perfAudioRefs.current[index];
+        if (playback.perfPlaying[index] && audio?.paused) {
+          try { await audio.play(); } catch (error) { /* the operator will see it stopped */ }
+        }
+        return;
+      }
+      if (playback.bgPlaying && bgAudioRef.current?.paused) {
         try { await bgAudioRef.current.play(); } catch (error) { /* the operator will see it stopped */ }
       }
     };

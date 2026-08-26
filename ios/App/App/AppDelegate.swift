@@ -18,11 +18,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
-    private func activateAudioSession() {
+    // Re-arming a session that is already configured is not free: setActive(true)
+    // on a live session can interrupt the media WKWebView is currently playing,
+    // which is felt as "it pauses when I come back to the app". Only touch the
+    // session when it is actually wrong.
+    private func activateAudioSession(force: Bool = false) {
+        let session = AVAudioSession.sharedInstance()
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
+            if session.category != .playback || session.mode != .default {
+                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setActive(true)
+                return
+            }
+            if force {
+                try session.setActive(true)
+            }
         } catch {
             print("AVAudioSession configuration error: \(error)")
         }
@@ -41,14 +51,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
             if type == .ended {
-                self?.activateAudioSession()
+                // An interruption really did end the session, so this one has to
+                // reclaim it rather than check and skip.
+                self?.activateAudioSession(force: true)
                 self?.resumePlaybackInWebLayer()
             }
         }
 
         center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
                            object: session, queue: .main) { [weak self] _ in
-            self?.activateAudioSession()
+            self?.activateAudioSession(force: true)
             self?.resumePlaybackInWebLayer()
         }
     }
@@ -75,10 +87,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Reclaim the audio session after an interruption while we were backgrounded.
-        // Without this, playback resumes into a dead session and
-        // tracks appear to play with no sound.
+        // Check the session is still ours, but do not re-activate one that is
+        // already correct - that is what was cutting playback on return. Then
+        // tell the web layer to pick up whatever the trip interrupted.
         activateAudioSession()
+        resumePlaybackInWebLayer()
         application.isIdleTimerDisabled = true
     }
 
