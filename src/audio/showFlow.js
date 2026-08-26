@@ -154,3 +154,14 @@ export function endFadeDecision({
   if (started && remaining > window + 0.35) return 'cancel';
   return 'hold';
 }
+
+// What a lock screen or Control Center button should actually do. The buttons
+// are not a toggle: iOS sends `play` when it believes the show is stopped and
+// `pause` when it believes it is running, and those beliefs go stale while the
+// operator is working in the app. Acting on the command blindly is how a play
+// button silences a room that was already playing.
+export function remoteTransportIntent({ command, isPlaying }) {
+  const playing = Boolean(isPlaying);
+  const wants = command === 'play' ? true : command === 'pause' ? false : !playing;
+  return wants === playing ? 'ignore' : 'toggle';
+}

@@ -1,5 +1,6 @@
 import {
   SHOW_PHASE,
+  remoteTransportIntent,
   finishPerformanceFlow,
   getShowDeckState,
   getShowReadiness,
@@ -230,5 +231,22 @@ describe('local show flow', () => {
     expect(endFadeDecision({ duration: 4, currentTime: 1.5, fadeSeconds })).toBe('hold');
     // Unknown duration cannot be reasoned about.
     expect(endFadeDecision({ duration: 0, currentTime: 0, fadeSeconds })).toBe('hold');
+  });
+});
+
+describe('lock screen transport', () => {
+  test('play on a stopped show starts it, pause on a running show stops it', () => {
+    expect(remoteTransportIntent({ command: 'play', isPlaying: false })).toBe('toggle');
+    expect(remoteTransportIntent({ command: 'pause', isPlaying: true })).toBe('toggle');
+  });
+
+  test('a stale button never fights the show it is looking at', () => {
+    expect(remoteTransportIntent({ command: 'play', isPlaying: true })).toBe('ignore');
+    expect(remoteTransportIntent({ command: 'pause', isPlaying: false })).toBe('ignore');
+  });
+
+  test('toggle always flips, whichever way the show is running', () => {
+    expect(remoteTransportIntent({ command: 'toggle', isPlaying: true })).toBe('toggle');
+    expect(remoteTransportIntent({ command: 'toggle', isPlaying: false })).toBe('toggle');
   });
 });

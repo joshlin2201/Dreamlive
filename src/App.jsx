@@ -29,6 +29,7 @@ import {
   shouldSyncPlaybackProgress,
   startPerformanceFlow,
   visiblePerformanceOrder,
+  remoteTransportIntent,
 } from './audio/showFlow';
 import {
   insertPlaylistItem,
@@ -55,6 +56,15 @@ import {
 import { getPopoverPosition, nextOptionIndex } from './ui/combobox';
 import AudioVisualizer from './components/AudioVisualizer';
 import { ANALYSIS_SAMPLE_RATE } from './audio/waveform';
+import {
+  ROOM,
+  STAGE,
+  createFileCache,
+  createNativeChannels,
+  createWebChannels,
+  isNativeAudio,
+  nativePlugin,
+} from './audio/showAudio';
 import { computeSpectrogram } from './audio/spectrogram';
 import AudioLibraryPanel from './components/AudioLibraryPanel';
 import { prefersAutoFocus } from './ui/focus';
@@ -538,6 +548,12 @@ function App() {
   // for that track's audio to be ready, so the intent is held here and an
   // effect below plays it the moment both are true.
   const resumeQueuedBgRef = useRef(false);
+  // Playback runs natively on device and through the WebView in a browser. The
+  // show logic below only ever talks to channels, so it does not care which.
+  const channelsRef = useRef(null);
+  const fileCacheRef = useRef(null);
+  const nativeAudioRef = useRef(false);
+  const stageIndexRef = useRef(null);
   // One offline spectrogram per track source: real frequency content for the
   // visualizer, without routing playback through the Web Audio graph.
   const trackPeaksRef = useRef(new Map());
@@ -624,6 +640,12 @@ function App() {
   const endFadeStartedRef = useRef({});
   const bgReturnStartedRef = useRef(false);
   const returnBackgroundRef = useRef(() => {});
+  const handlePerformanceEndRef = useRef(() => {});
+  const advanceBackgroundRef = useRef(() => {});
+  const togglePerfPauseRef = useRef(() => {});
+  const startPerformanceRef = useRef(() => {});
+  const endPerformanceRef = useRef(() => {});
+  const toggleBackgroundMusicRef = useRef(() => {});
   const fadeResolverRef = useRef(null);
   const transitionLockRef = useRef(false);
   const seekTimeoutRefs = useRef({ bg: null, perf: performanceArray(null) });
@@ -1122,75 +1144,64 @@ function App() {
     };
   }, []);
 
-  // Update progress bars (only ticks while something is actually playing)
+  // Progress, and the tail fade that keeps a track from ending on a cut. The
+  // engine is the source of truth for time now, so this asks it rather than
+  // reading an element that no longer plays anything on device.
   useEffect(() => {
     const anyPlaying = perfPlaying.some(Boolean);
     if (!anyPlaying) return undefined;
 
-    progressIntervalRef.current = setInterval(() => {
-      // A track that simply runs out stops at full level, which reads as a cut.
-      // Ride the last seconds down so a natural ending sounds like every other
-      // transition, and undo it if the operator scrubs back into the track.
+    progressIntervalRef.current = setInterval(async () => {
+      const engine = channels();
       const liveIndex = playbackStateRef.current.currentPerformance;
-      const liveAudio = liveIndex === null ? null : perfAudioRefs.current[liveIndex];
-      if (liveAudio && !liveAudio.paused && perfPlaying[liveIndex]) {
-        const gainNode = routedPerfGain(liveIndex);
-        const context = audioContextRef.current;
-        const decision = endFadeDecision({
-          duration: liveAudio.duration,
-          currentTime: liveAudio.currentTime,
-          fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut,
-          started: Boolean(endFadeStartedRef.current[liveIndex]),
-          isSeeking: performanceSeekingRef.current[liveIndex],
-        });
-        if (decision === 'fade') {
-          endFadeStartedRef.current[liveIndex] = true;
-          returnBackgroundRef.current();
-          const duration = Math.max(0.05, liveAudio.duration - liveAudio.currentTime);
-          if (gainNode && context) {
-            scheduleGainEnvelope(gainNode.gain, {
-              currentTime: context.currentTime,
-              target: 0,
-              duration,
-            });
-          } else {
-            fadeElementVolume(liveAudio, 0, duration);
-          }
-        } else if (decision === 'cancel') {
-          endFadeStartedRef.current[liveIndex] = false;
-          if (gainNode && context) {
-            fadeGainTo(gainNode, perfVolumesRef.current[liveIndex], AUDIO_TRANSITION_SECONDS.seek);
-          } else {
-            liveAudio.volume = perfVolumesRef.current[liveIndex];
-          }
-        }
-      }
-      if (document.visibilityState !== 'visible') return;
-      setPerfProgress(prev => {
-        let changed = false;
-        const next = prev.map((value, index) => {
-          const audio = perfAudioRefs.current[index];
-          if (audio && shouldSyncPlaybackProgress({
-            isPlaying: perfPlaying[index],
-            isSeeking: performanceSeekingRef.current[index],
-            audioTime: audio.currentTime,
-            renderedTime: value,
-          })) {
-            changed = true;
-            return audio.currentTime;
-          }
-          return value;
-        });
-        return changed ? next : prev;
+      if (!engine || liveIndex === null || !perfPlaying[liveIndex]) return;
+
+      const state = await engine.state(STAGE);
+      if (!state.playing) return;
+
+      const decision = endFadeDecision({
+        duration: state.duration,
+        currentTime: state.currentTime,
+        fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut,
+        started: Boolean(endFadeStartedRef.current[liveIndex]),
+        isSeeking: performanceSeekingRef.current[liveIndex],
       });
-    }, 200);
+      if (decision === 'fade') {
+        endFadeStartedRef.current[liveIndex] = true;
+        returnBackgroundRef.current();
+        engine.setVolume(STAGE, 0.0001, {
+          fadeSeconds: Math.max(0.05, state.duration - state.currentTime),
+        });
+      } else if (decision === 'cancel') {
+        endFadeStartedRef.current[liveIndex] = false;
+        engine.setVolume(STAGE, perfVolumesRef.current[liveIndex], {
+          fadeSeconds: AUDIO_TRANSITION_SECONDS.seek,
+        });
+      }
+
+      if (document.visibilityState !== 'visible') return;
+      setPerfProgress(previous => {
+        if (!shouldSyncPlaybackProgress({
+          isPlaying: true,
+          isSeeking: performanceSeekingRef.current[liveIndex],
+          audioTime: state.currentTime,
+          renderedTime: previous[liveIndex],
+        })) return previous;
+        return previous.map((value, index) => (index === liveIndex ? state.currentTime : value));
+      });
+      if (state.duration > 0 && !perfDurations[liveIndex]) {
+        setPerfDurations(previous => previous.map((value, index) => (
+          index === liveIndex ? state.duration : value
+        )));
+      }
+    }, 250);
 
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [perfPlaying]);
+  }, [perfPlaying, perfDurations]);
 
   const loadAudioFiles = async () => {
     setIsLoading(true);
@@ -1652,11 +1663,7 @@ function App() {
     });
     if (!result.changed) return;
     if (index === bgIndex && bgPlaying) {
-      await pauseClicklessly(
-        bgAudioRef.current,
-        routedBgGain(),
-        AUDIO_TRANSITION_SECONDS.handoffOut,
-      );
+      await channels()?.pause(ROOM, { fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut });
     }
     if (index === bgIndex) setLoopCurrentTrack(false);
     setBgPlaylist(result.playlist);
@@ -1687,19 +1694,139 @@ function App() {
     showNotice('Upcoming BGM tracks shuffled.');
   };
 
+  // The engine is chosen once, on mount. Native gets AVAudioPlayer channels; a
+  // browser gets the element-and-gain-node path the app already had.
+  useEffect(() => {
+    const plugin = nativePlugin();
+    nativeAudioRef.current = isNativeAudio();
+    if (plugin) {
+      channelsRef.current = createNativeChannels(plugin);
+      fileCacheRef.current = createFileCache({
+        plugin,
+        // A library track lives in IndexedDB; a freshly imported one is still a
+        // blob URL. Both have to reach disk before native can play them.
+        loadBlob: async (ref) => {
+          if (isManagedAudioRef(ref)) return loadTrackBlobFromIndexedDB(ref);
+          const source = trackSource(ref) || ref;
+          if (!source) return null;
+          const response = await fetch(source);
+          return response.blob();
+        },
+      });
+    } else {
+      channelsRef.current = createWebChannels({
+        elementFor: (channel) => (channel === ROOM
+          ? bgAudioRef.current
+          : perfAudioRefs.current[stageIndexRef.current ?? -1]),
+        gainFor: (channel) => (channel === ROOM
+          ? routedBgGain()
+          : routedPerfGain(stageIndexRef.current ?? -1)),
+        contextRef: audioContextRef,
+        fadeGain: (gain, target, seconds) => fadeGainTo(gain, target, seconds),
+        muteGain,
+      });
+    }
+    return undefined;
+    // The engine lives as long as the app does, so it is built once.
+  }, []);
+
+  const channels = () => channelsRef.current;
+
+  useEffect(() => {
+    const engine = channelsRef.current;
+    if (!engine) return undefined;
+    let endedHandle = null;
+    let remoteHandle = null;
+
+    Promise.resolve(engine.onEnded((channel) => {
+      if (channel === STAGE) {
+        const index = playbackStateRef.current.currentPerformance;
+        if (index !== null) handlePerformanceEndRef.current(index);
+        return;
+      }
+      if (channel === ROOM) advanceBackgroundRef.current({ type: 'ended' });
+    })).then(handle => { endedHandle = handle; });
+
+    Promise.resolve(engine.onRemoteCommand((command) => {
+      // The lock screen asks; the show decides what that means right now. A
+      // performance owns the transport while one is up, otherwise the room
+      // does. Play on something already playing must do nothing - toggling it
+      // there is how a lock screen button silences the room by mistake.
+      const playback = playbackStateRef.current;
+      const index = playback.currentPerformance;
+      const isPlaying = index !== null
+        ? Boolean(playback.perfPlaying[index])
+        : Boolean(playback.bgPlaying);
+      if (remoteTransportIntent({ command, isPlaying }) === 'ignore') return;
+      if (index !== null) togglePerfPauseRef.current(index);
+      else toggleBackgroundMusicRef.current();
+    })).then(handle => { remoteHandle = handle; });
+
+    return () => {
+      endedHandle?.remove?.();
+      remoteHandle?.remove?.();
+    };
+  }, []);
+
+  // The lock screen only ever shows what the room or the stage is doing now.
+  // Position and length come from the channel itself unless a caller knows
+  // better: given both plus the playing flag, iOS ticks the scrubber on its
+  // own, so this does not need a timer behind it.
+  const updateNowPlaying = ({ title, playing, elapsed, duration, channel }) => {
+    const engine = channels();
+    if (!engine) return;
+    const which = channel || (playbackStateRef.current.currentPerformance !== null ? STAGE : ROOM);
+    Promise.resolve(
+      Number.isFinite(elapsed) && Number.isFinite(duration)
+        ? { currentTime: elapsed, duration }
+        : engine.state(which).catch(() => ({ currentTime: 0, duration: 0 })),
+    )
+      .then(state => engine.nowPlaying({
+        title,
+        artist: 'DreamLIVE',
+        playing,
+        elapsed: Number(state.currentTime) || 0,
+        duration: Number(state.duration) || 0,
+      }))
+      .catch(() => { /* the lock screen is a courtesy, never a blocker */ });
+  };
+
+  // A track's identity for the native file cache: the library id when it has
+  // one, otherwise the source itself.
+  const trackCacheKey = (trackRef) => (audioIdFromRef(trackRef) || trackRef || '');
+
+  // Native playback needs the file staged and the channel loaded before it can
+  // start. Both are cached, so a track that has played before is instant.
+  const prepareChannel = async (channel, trackRef, volume) => {
+    const engine = channels();
+    if (!engine) return false;
+    if (engine.kind !== 'native') return true;
+    const key = trackCacheKey(trackRef);
+    if (!key) return false;
+    const path = await fileCacheRef.current.ensure(key, trackRef);
+    if (!path) return false;
+    if (engine.loadedPath(channel) !== path) {
+      await engine.load(channel, path, volume);
+    }
+    return true;
+  };
+
   const playBackgroundAudio = async () => {
     const audio = bgAudioRef.current;
-    if (!bgTrack || !bgTrackSource || !audio || currentPerformance !== null) return false;
+    if (!bgTrack || !bgTrackSource || currentPerformance !== null) return false;
+    if (!nativeAudioRef.current && !audio) return false;
 
     clearBackgroundTail();
-    const ready = await ensureAudioReady();
-    if (!ready) {
-      setShowError('DreamLIVE audio is paused by the device. Tap Play again.');
-      setShowPhase(SHOW_PHASE.ERROR);
-      return false;
+    if (!nativeAudioRef.current) {
+      const ready = await ensureAudioReady();
+      if (!ready) {
+        setShowError('DreamLIVE audio is paused by the device. Tap Play again.');
+        setShowPhase(SHOW_PHASE.ERROR);
+        return false;
+      }
     }
 
-    if (ROUTE_AUDIO_THROUGH_WEB_AUDIO && audioContextRef.current && !bgSourceNodeRef.current) {
+    if (!nativeAudioRef.current && ROUTE_AUDIO_THROUGH_WEB_AUDIO && audioContextRef.current && !bgSourceNodeRef.current) {
       try {
         const source = audioContextRef.current.createMediaElementSource(audio);
         source.connect(bgGainNodeRef.current);
@@ -1709,21 +1836,16 @@ function App() {
       }
     }
 
-    const bgGain = routedBgGain();
-    if (bgGain) {
-      audio.volume = 1;
-      muteGain(bgGain);
-    } else {
-      audio.volume = 0;
-    }
-    const ok = await playSafely(audio, 'background music');
+    const engine = channels();
+    const staged = await prepareChannel(ROOM, bgTrack, 0.0001);
+    const ok = staged && engine
+      ? await engine.play(ROOM, { volume: 0.0001 })
+      : false;
     if (ok) {
       setBgPlaying(true);
       setShowError('');
-      fadeGainTo(bgGain, bgVolumeRef.current, START_FADE);
-      if (!bgGain) {
-        await fadeElementVolume(audio, bgVolumeRef.current, START_FADE);
-      }
+      await engine.setVolume(ROOM, bgVolumeRef.current, { fadeSeconds: START_FADE });
+      updateNowPlaying({ title: trackName(bgTrack), playing: true });
     } else {
       setShowError(`${trackName(bgTrack)} couldn’t start. Tap Play again or choose another track.`);
       setShowPhase(SHOW_PHASE.ERROR);
@@ -1736,7 +1858,7 @@ function App() {
     if (!bgTrack || !bgAudioRef.current || isFading) return;
     if (currentPerformance !== null) return;
     if (bgPlaying) {
-      await pauseClicklessly(bgAudioRef.current, routedBgGain());
+      await channels()?.pause(ROOM, { fadeSeconds: AUDIO_TRANSITION_SECONDS.pause });
       setBgPlaying(false);
       return;
     }
@@ -1754,7 +1876,7 @@ function App() {
     });
     if (next === null) {
       if (event?.type !== 'ended') {
-        await pauseClicklessly(bgAudioRef.current, routedBgGain());
+        await channels()?.pause(ROOM, { fadeSeconds: AUDIO_TRANSITION_SECONDS.pause });
       }
       setBgPlaying(false);
       return;
@@ -1763,7 +1885,7 @@ function App() {
     if (event?.type === 'ended') {
       muteGain(routedBgGain());
     } else {
-      await pauseClicklessly(bgAudioRef.current, routedBgGain());
+      await channels()?.pause(ROOM, { fadeSeconds: AUDIO_TRANSITION_SECONDS.pause });
     }
     if (next === bgIndex) {
       bgAudioRef.current.currentTime = 0;
@@ -1784,11 +1906,7 @@ function App() {
       await playBackgroundAudio();
       return;
     }
-    await pauseClicklessly(
-      bgAudioRef.current,
-      routedBgGain(),
-      AUDIO_TRANSITION_SECONDS.handoffOut,
-    );
+    await channels()?.pause(ROOM, { fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut });
     setBgPlaying(true);
     setBgIndex(index);
   };
@@ -1829,21 +1947,7 @@ function App() {
   const previewBgVolume = value => {
     const newVolume = Number.parseFloat(value);
     bgVolumeRef.current = newVolume;
-    const bgGain = routedBgGain();
-    if (bgGain) {
-      const context = audioContextRef.current;
-      if (context) {
-        setGainImmediately(bgGain.gain, {
-          currentTime: context.currentTime,
-          target: newVolume,
-        });
-      } else {
-        bgGain.gain.value = newVolume;
-      }
-      if (bgAudioRef.current) bgAudioRef.current.volume = 1;
-    } else if (bgAudioRef.current) {
-      bgAudioRef.current.volume = newVolume;
-    }
+    channels()?.setVolume(ROOM, newVolume);
   };
 
   const commitBgVolume = value => {
@@ -1855,21 +1959,7 @@ function App() {
   const previewPerfVolume = (index, value) => {
     const newVolume = Number.parseFloat(value);
     perfVolumesRef.current[index] = newVolume;
-    const perfGain = routedPerfGain(index);
-    if (perfGain) {
-      const context = audioContextRef.current;
-      if (context) {
-        setGainImmediately(perfGain.gain, {
-          currentTime: context.currentTime,
-          target: newVolume,
-        });
-      } else {
-        perfGain.gain.value = newVolume;
-      }
-      if (perfAudioRefs.current[index]) perfAudioRefs.current[index].volume = 1;
-    } else if (perfAudioRefs.current[index]) {
-      perfAudioRefs.current[index].volume = newVolume;
-    }
+    if (currentPerformance === index) channels()?.setVolume(STAGE, newVolume);
   };
 
   const commitPerfVolume = (index, value) => {
@@ -1911,16 +2001,13 @@ function App() {
     if (!bgAudioRef.current || !bgPlaying) return;
     setIsFading(true);
     clearBackgroundTail();
-    const audio = bgAudioRef.current;
-    const gainNode = routedBgGain();
+    const engine = channels();
     const duration = AUDIO_TRANSITION_SECONDS.handoffOut;
     const lead = handoffLeadSeconds({ out: duration });
-    await pauseClicklessly(audio, gainNode, duration, { holdSeconds: lead });
-    // The room still hears the tail; only silence the node once it is spent.
-    bgTailTimeoutRef.current = window.setTimeout(() => {
-      bgTailTimeoutRef.current = null;
-      muteGain(gainNode);
-    }, Math.max(0, (duration - lead) * 1000) + 24);
+    // The fade runs to completion in the engine while the stage comes up under
+    // its tail: hand back after the lead, not after the whole fade.
+    if (engine) engine.pause(ROOM, { fadeSeconds: duration });
+    await new Promise(resolve => window.setTimeout(resolve, Math.max(0, lead) * 1000));
     setBgPlaying(false);
     setIsFading(false);
   };
@@ -1950,28 +2037,21 @@ function App() {
   };
 
   const startBackgroundWithFade = async () => {
-    const audio = bgAudioRef.current;
-    if (!audio) return;
-    const ready = await ensureAudioReady();
-    if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Play in BGM again.');
-
-    const returningGain = routedBgGain();
-    if (returningGain && audioContextRef.current) {
-      audio.volume = 1;
-      muteGain(returningGain);
-      const ok = await playSafely(audio, 'background music');
-      if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
-      setBgPlaying(true);
-      fadeGainTo(returningGain, bgVolumeRef.current, AUDIO_TRANSITION_SECONDS.handoffIn);
-      const completed = await waitForFade((AUDIO_TRANSITION_SECONDS.handoffIn * 1000) + 8);
-      if (!completed) throw new Error('Transition cancelled.');
-    } else {
-      audio.volume = 0;
-      const ok = await playSafely(audio, 'background music');
-      if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
-      setBgPlaying(true);
-      await fadeElementVolume(audio, bgVolumeRef.current, AUDIO_TRANSITION_SECONDS.handoffIn);
+    const engine = channels();
+    if (!engine || !bgTrack) return;
+    if (!nativeAudioRef.current) {
+      const ready = await ensureAudioReady();
+      if (!ready) throw new Error('DreamLIVE audio couldn’t resume. Tap Play in BGM again.');
     }
+    const staged = await prepareChannel(ROOM, bgTrack, 0.0001);
+    if (!staged) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
+    const ok = await engine.play(ROOM, { volume: 0.0001 });
+    if (!ok) throw new Error('BGM couldn’t resume. Tap Play in the BGM controls.');
+    setBgPlaying(true);
+    await engine.setVolume(ROOM, bgVolumeRef.current, {
+      fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffIn,
+    });
+    updateNowPlaying({ title: trackName(bgTrack), playing: true });
     setIsFading(false);
   };
 
@@ -2016,9 +2096,9 @@ function App() {
   const playPerformanceTrack = async (index) => {
     setCurrentPerformance(index);
     const audio = perfAudioRefs.current[index];
-    if (!audio) throw new Error(`Performance ${index + 1} is not available.`);
+    if (!nativeAudioRef.current && !audio) throw new Error(`Performance ${index + 1} is not available.`);
 
-    if (ROUTE_AUDIO_THROUGH_WEB_AUDIO && audioContextRef.current && !perfSourceNodeRefs.current[index]) {
+    if (!nativeAudioRef.current && ROUTE_AUDIO_THROUGH_WEB_AUDIO && audioContextRef.current && !perfSourceNodeRefs.current[index]) {
       try {
         const source = audioContextRef.current.createMediaElementSource(audio);
         source.connect(ensurePerformanceGain(index));
@@ -2028,15 +2108,14 @@ function App() {
       }
     }
 
-    ensurePerformanceGain(index);
-    const perfGain = routedPerfGain(index);
+    const engine = channels();
     const target = perfVolumesRef.current[index];
-    audio.currentTime = 0;
-    audio.volume = perfGain ? 1 : 0;
-    muteGain(perfGain);
-    const ready = await ensureAudioReady();
-    if (!ready) throw new Error('DreamLIVE audio couldn’t start. Tap Start again.');
-    const ok = await playSafely(audio, `Performance ${index + 1}`);
+    stageIndexRef.current = index;
+    const staged = await prepareChannel(STAGE, perfTracks[index], 0.0001);
+    if (!staged || !engine) {
+      throw new Error(`Performance ${index + 1} couldn’t start. Check the track, then try again.`);
+    }
+    const ok = await engine.play(STAGE, { from: 0, volume: 0.0001 });
     if (!ok) throw new Error(`Performance ${index + 1} couldn’t start. Check the track, then try again.`);
 
     // The stage is live the moment the track starts. Awaiting the fade here
@@ -2044,10 +2123,8 @@ function App() {
     setPerfPlaying(previous => previous.map((playing, trackIndex) => (
       trackIndex === index ? true : playing
     )));
-    fadeGainTo(perfGain, target, START_FADE);
-    if (!perfGain) {
-      void fadeElementVolume(audio, target, START_FADE);
-    }
+    engine.setVolume(STAGE, target, { fadeSeconds: START_FADE });
+    updateNowPlaying({ title: trackName(perfTracks[index]), playing: true });
   };
 
   // Start performance through one ordered, test-covered show flow.
@@ -2098,34 +2175,33 @@ function App() {
     const audio = perfAudioRefs.current[index];
     if (!audio) return;
 
+    const engine = channels();
+    if (!engine) return;
+
     if (perfPlaying[index]) {
-      await pauseClicklessly(audio, routedPerfGain(index));
+      // Pause lands now, with only enough ramp to avoid a click.
+      await engine.pause(STAGE, { fadeSeconds: AUDIO_TRANSITION_SECONDS.pause });
       setPerfPlaying(previous => previous.map((playing, trackIndex) => (
         trackIndex === index ? false : playing
       )));
       setShowPhase(SHOW_PHASE.PAUSED);
+      updateNowPlaying({ title: trackName(perfTracks[index]), playing: false });
       return;
     }
 
-    // A resumed context can repeat the warm-up, so mute then fade here too.
     endFadeStartedRef.current[index] = false;
-    ensurePerformanceGain(index);
-    const perfGain = routedPerfGain(index);
-    await ensureAudioReady();
-    muteGain(perfGain);
-    if (!perfGain) audio.volume = 0;
-    const ok = await playSafely(audio, `Performance ${index + 1}`);
+    stageIndexRef.current = index;
+    const staged = await prepareChannel(STAGE, perfTracks[index], 0.0001);
+    const ok = staged && await engine.play(STAGE, { volume: 0.0001 });
     if (ok) {
       setPerfPlaying(previous => previous.map((playing, trackIndex) => (
         trackIndex === index ? true : playing
       )));
-      fadeGainTo(perfGain, perfVolumesRef.current[index], RESUME_FADE);
-      if (!perfGain) {
-        void fadeElementVolume(audio, perfVolumesRef.current[index], RESUME_FADE);
-      }
+      engine.setVolume(STAGE, perfVolumesRef.current[index], { fadeSeconds: RESUME_FADE });
       setShowPhase(SHOW_PHASE.LIVE);
-    } else if (perfGain) {
-      fadeGainTo(perfGain, perfVolumesRef.current[index], 0);
+      updateNowPlaying({ title: trackName(perfTracks[index]), playing: true });
+    } else {
+      showNotice(`Performance ${index + 1} couldn’t resume. Tap play again.`, 'error');
     }
   };
 
@@ -2173,12 +2249,10 @@ function App() {
       // Ending a performance early is a handoff, not a stop button: it gets the
       // same long fade the room hears when a track runs to its end.
       setIsFading(true);
-      await pauseClicklessly(
-        perfAudioRefs.current[index],
-        routedPerfGain(index),
-        AUDIO_TRANSITION_SECONDS.handoffOut,
-        { holdSeconds: handoffLeadSeconds() },
-      );
+      const engine = channels();
+      if (engine) engine.pause(STAGE, { fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut });
+      // The room comes back under the tail rather than after it.
+      await new Promise(resolve => window.setTimeout(resolve, handoffLeadSeconds() * 1000));
       setIsFading(false);
       setPerfProgress(previous => previous.map((progress, trackIndex) => (
         trackIndex === index ? (perfDurations[index] || progress) : progress
@@ -2200,22 +2274,21 @@ function App() {
   };
 
   // Seek to position in performance
+  handlePerformanceEndRef.current = handlePerformanceEnd;
+  advanceBackgroundRef.current = advanceBackground;
+  togglePerfPauseRef.current = togglePerfPause;
+  startPerformanceRef.current = startPerformance;
+  endPerformanceRef.current = endPerformance;
+  toggleBackgroundMusicRef.current = toggleBackgroundMusic;
+
   const handleSeek = (index, value) => {
-    const audio = perfAudioRefs.current[index];
-    if (audio) {
-      const time = parseFloat(value);
-      seekClicklessly({
-        audio,
-        gainNode: routedPerfGain(index),
-        value: time,
-        restoreTo: perfVolumesRef.current[index],
-        timeoutKey: 'perf',
-        index,
-      });
-      setPerfProgress(previous => previous.map((progress, trackIndex) => (
-        trackIndex === index ? time : progress
-      )));
-    }
+    const time = parseFloat(value);
+    if (!Number.isFinite(time)) return;
+    const engine = channels();
+    if (engine && currentPerformance === index) engine.seek(STAGE, time);
+    setPerfProgress(previous => previous.map((progress, trackIndex) => (
+      trackIndex === index ? time : progress
+    )));
   };
 
   const beginPerformanceSeek = index => {
@@ -2235,7 +2308,7 @@ function App() {
 
   const clearPerformanceCues = async () => {
     await Promise.all(perfAudioRefs.current.map((audio, index) => (
-      pauseClicklessly(audio, routedPerfGain(index))
+      channels()?.stop(STAGE)
     )));
     perfAudioRefs.current.forEach(audio => {
       if (audio) audio.currentTime = 0;
@@ -2348,7 +2421,7 @@ function App() {
     const shouldRestoreBackground = currentPerformance !== null && Boolean(bgTrack);
     try {
       await Promise.all(perfAudioRefs.current.map((audio, index) => (
-        pauseClicklessly(audio, routedPerfGain(index))
+        channels()?.stop(STAGE)
       )));
       perfAudioRefs.current.forEach(audio => {
         if (audio) audio.currentTime = 0;
@@ -2388,11 +2461,7 @@ function App() {
     });
     try {
       if (removed.has(bgTrack) && bgPlaying) {
-        await pauseClicklessly(
-          bgAudioRef.current,
-          routedBgGain(),
-          AUDIO_TRANSITION_SECONDS.handoffOut,
-        );
+        await channels()?.pause(ROOM, { fadeSeconds: AUDIO_TRANSITION_SECONDS.handoffOut });
       }
       await deleteTracksFromIndexedDB(paths);
       paths.forEach(path => {

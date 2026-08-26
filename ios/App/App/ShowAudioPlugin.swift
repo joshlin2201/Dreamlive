@@ -47,6 +47,16 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // MARK: - Files
 
+    // A track id can be a library id or a whole blob: URL. Either way it has to
+    // become one safe filename - the slashes in a URL would otherwise be read as
+    // folders that do not exist.
+    private func fileName(for id: String) -> String {
+        let allowed = CharacterSet.alphanumerics
+        let cleaned = String(id.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" })
+        let trimmed = cleaned.count > 80 ? String(cleaned.suffix(80)) : cleaned
+        return "\(trimmed)-\(abs(id.hashValue)).audio"
+    }
+
     private func trackDirectory() throws -> URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let dir = base.appendingPathComponent("show-audio", isDirectory: true)
@@ -66,7 +76,7 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
         queue.async {
             do {
                 let dir = try self.trackDirectory()
-                let url = dir.appendingPathComponent("\(id).audio")
+                let url = dir.appendingPathComponent(self.fileName(for: id))
                 if !FileManager.default.fileExists(atPath: url.path) {
                     guard let bytes = Data(base64Encoded: base64) else {
                         call.reject("audio data was not valid base64")
