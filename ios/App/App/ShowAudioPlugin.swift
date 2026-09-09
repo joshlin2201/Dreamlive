@@ -24,7 +24,7 @@ import MediaPlayer
 // under a .playback session with the audio background mode keeps playing on the
 // lock screen and answers the remote transport.
 @objc(ShowAudioPlugin)
-public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate {
     public let identifier = "ShowAudioPlugin"
     public let jsName = "ShowAudio"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -41,7 +41,7 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     private var players: [String: AVAudioPlayer] = [:]
-    private var endObservers: [String: Any] = [:]
+    private var completionArmed: Set<String> = []
     private let queue = DispatchQueue(label: "com.joshlin.dreamlive.showaudio")
     private var remoteWired = false
 
@@ -100,34 +100,25 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
         do {
             let player = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: path))
             player.volume = volume
+            player.delegate = self
             player.prepareToPlay()
+            completionArmed.remove(id)
+            players[id]?.delegate = nil
+            players[id]?.stop()
             players[id] = player
-            observeEnd(id: id, player: player)
             call.resolve(["duration": player.duration])
         } catch {
             call.reject("could not open the track: \(error.localizedDescription)")
         }
     }
 
-    // AVAudioPlayer has no completion notification, so the end is detected by
-    // watching the playhead. Cheap, and it never fires twice for one pass.
-    private func observeEnd(id: String, player: AVAudioPlayer) {
-        if let existing = endObservers[id] as? Timer { existing.invalidate() }
-        var reported = false
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self, weak player] _ in
-            guard let self = self, let player = player else { return }
-            if player.isPlaying {
-                reported = false
-                return
-            }
-            if reported { return }
-            if player.currentTime >= player.duration - 0.35 && player.duration > 0 {
-                reported = true
-                self.notifyListeners("ended", data: ["id": id])
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        endObservers[id] = timer
+    // The playhead resets to zero at natural completion. Polling currentTime
+    // therefore misses the end, and pausing near the end can look like one.
+    public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        guard let id = players.first(where: { $0.value === player })?.key,
+              completionArmed.remove(id) != nil else { return }
+        guard flag else { return }
+        notifyListeners("ended", data: ["id": id])
     }
 
     // MARK: - Transport
@@ -140,6 +131,7 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
         if let at = call.getDouble("from") { player.currentTime = at }
         if let volume = call.getDouble("volume") { player.volume = Float(volume) }
         let started = player.play()
+        if started { completionArmed.insert(id) }
         wireRemoteCommandsIfNeeded()
         call.resolve(["playing": started])
     }
@@ -152,6 +144,7 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         let fade = call.getDouble("fadeSeconds") ?? 0
+        completionArmed.remove(id)
         if fade > 0 {
             player.setVolume(0, fadeDuration: fade)
             DispatchQueue.main.asyncAfter(deadline: .now() + fade + 0.05) { [weak player] in
@@ -168,6 +161,7 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
             return
         }
+        completionArmed.remove(id)
         player.stop()
         player.currentTime = 0
         call.resolve()
@@ -216,10 +210,10 @@ public class ShowAudioPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
             return
         }
+        completionArmed.remove(id)
+        players[id]?.delegate = nil
         players[id]?.stop()
         players.removeValue(forKey: id)
-        (endObservers[id] as? Timer)?.invalidate()
-        endObservers.removeValue(forKey: id)
         call.resolve()
     }
 
